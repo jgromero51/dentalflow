@@ -1,0 +1,14 @@
+# Dependencias
+node_modules/
+.npm
+npm-debug.log
+
+# Base de datos local
+backend/db/dentalflow.db
+backend/db/*.db
+*.db
+
+# Configuración sensible
+.env
+.DS_Store
+Thumbs.db
