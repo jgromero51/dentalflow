@@ -8,7 +8,7 @@ git config user.name "DentalFlow"
 git add .
 git commit -m "Lanzamiento DentalFlow"
 git remote remove origin 2>nul
-git remote add origin https://github.com/jgromeros51/dentalflow.git
+git remote add origin https://github.com/jgromero51/dentalflow.git
 git push -u origin main
 
 echo.
