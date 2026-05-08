@@ -4,7 +4,7 @@
  * Sin dependencias externas (100% offline-ready).
  */
 
-const CACHE_NAME = 'dentalflow-v2';
+const CACHE_NAME = 'dentalflow-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -14,8 +14,15 @@ const STATIC_ASSETS = [
   '/js/api.js',
   '/js/components/toast.js',
   '/js/components/calendar.js',
+  '/js/components/odontogram.js',
   '/js/views/appointments.js',
+  '/js/views/dashboard.js',
+  '/js/views/messages.js',
+  '/js/views/patients.js',
+  '/js/views/patientDetail.js',
   '/js/views/newAppointment.js',
+  '/js/views/auth.js',
+  '/js/views/settings.js',
   '/js/app.js',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

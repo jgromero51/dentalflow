@@ -85,7 +85,7 @@ router.get('/:id', (req, res) => {
 // ============================================================
 router.post('/', (req, res) => {
   try {
-    const { nombre, telefono, dni, notas } = req.body;
+    const { nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas } = req.body;
 
     // Validaciones básicas
     if (!nombre || !nombre.trim()) {
@@ -110,9 +110,9 @@ router.post('/', (req, res) => {
     }
 
     const result = db.prepare(`
-      INSERT INTO patients (nombre, telefono, dni, notas)
-      VALUES (?, ?, ?, ?)
-    `).run(nombre.trim(), telefonoNorm, dni || null, notas || null);
+      INSERT INTO patients (nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(nombre.trim(), telefonoNorm, dni || null, notas || null, alergias || null, tipo_sangre || null, enfermedades_previas || null);
 
     const newPatient = db.prepare('SELECT * FROM patients WHERE id = ?').get(result.lastInsertRowid);
 
@@ -129,7 +129,7 @@ router.post('/', (req, res) => {
 // ============================================================
 router.put('/:id', (req, res) => {
   try {
-    const { nombre, telefono, dni, notas } = req.body;
+    const { nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas } = req.body;
     const { id } = req.params;
 
     const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
@@ -143,13 +143,16 @@ router.put('/:id', (req, res) => {
 
     db.prepare(`
       UPDATE patients
-      SET nombre = ?, telefono = ?, dni = ?, notas = ?, updated_at = datetime('now','localtime')
+      SET nombre = ?, telefono = ?, dni = ?, notas = ?, alergias = ?, tipo_sangre = ?, enfermedades_previas = ?, updated_at = datetime('now','localtime')
       WHERE id = ?
     `).run(
       nombre?.trim() || patient.nombre,
       telefonoNorm,
       dni !== undefined ? dni : patient.dni,
       notas !== undefined ? notas : patient.notas,
+      alergias !== undefined ? alergias : patient.alergias,
+      tipo_sangre !== undefined ? tipo_sangre : patient.tipo_sangre,
+      enfermedades_previas !== undefined ? enfermedades_previas : patient.enfermedades_previas,
       id
     );
 

@@ -7,6 +7,17 @@
 
 const API_BASE = '/api';
 
+// ---- Gestión de sesión ----
+const Auth = {
+  getToken()  { return localStorage.getItem('df_token'); },
+  setToken(t) { localStorage.setItem('df_token', t); },
+  clearToken(){ localStorage.removeItem('df_token'); localStorage.removeItem('df_user'); },
+  getUser()   { try { return JSON.parse(localStorage.getItem('df_user') || 'null'); } catch { return null; } },
+  setUser(u)  { localStorage.setItem('df_user', JSON.stringify(u)); },
+  isLoggedIn(){ return !!this.getToken(); },
+};
+window.Auth = Auth;
+
 // Detecta si estamos en modo nativo (Capacitor APK) o sin servidor
 const IS_NATIVE = typeof window !== 'undefined' &&
   (window.Capacitor !== undefined || window.__USE_LOCAL_DB === true);
@@ -29,9 +40,23 @@ function wrapLocal(fn) {
 const remoteApi = {
   async request(method, path, body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    // Inyectar token JWT si existe
+    const token = Auth.getToken();
+    if (token) opts.headers['Authorization'] = `Bearer ${token}`;
     if (body) opts.body = JSON.stringify(body);
     const res  = await fetch(`${API_BASE}${path}`, opts);
     const data = await res.json().catch(() => ({}));
+    // Si el servidor dice 401, cerrar sesión y forzar render del login
+    if (res.status === 401) {
+      Auth.clearToken();
+      // Forzamos render explícito del login aunque el hash ya sea #login
+      // (si el hash no cambia, hashchange no dispara y la vista no se actualiza)
+      window.location.hash = 'login';
+      if (window.Router) {
+        window.Router.handleRoute();
+      }
+      throw Object.assign(new Error('Sesión expirada. Iniciá sesión para continuar.'), { status: 401 });
+    }
     if (!res.ok) throw Object.assign(new Error(data.error || data.message || 'Error'), { status: res.status, data });
     return data;
   },
@@ -54,6 +79,30 @@ const remoteApi = {
     create: (data)   => remoteApi.request('POST', '/patients', data),
     update: (id, d)  => remoteApi.request('PUT', `/patients/${id}`, d),
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
+  },
+
+  settings: {
+    get:  ()     => remoteApi.request('GET',  '/settings'),
+    save: (data) => remoteApi.request('POST', '/settings', data),
+  },
+
+  messages: {
+    list: (p = {}) => remoteApi.request('GET', `/messages?${new URLSearchParams(p)}`),
+  },
+
+  odontogram: {
+    get:    (patientId) => remoteApi.request('GET', `/odontogram/${patientId}`),
+    create: (data)      => remoteApi.request('POST', '/odontogram', data),
+    delete: (id)        => remoteApi.request('DELETE', `/odontogram/${id}`),
+  },
+
+  auth: {
+    status:         ()     => remoteApi.request('GET',  '/auth/status'),
+    login:          (data) => remoteApi.request('POST', '/auth/login', data),
+    setup:          (data) => remoteApi.request('POST', '/auth/setup', data),
+    me:             ()     => remoteApi.request('GET',  '/auth/me'),
+    changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
+    logout() { Auth.clearToken(); },
   },
 
   health: () => remoteApi.request('GET', '/health'),
@@ -81,6 +130,21 @@ const localApi = {
     create: (data)   => wrapLocal((d)  => window.localDB.patients.create(d).then(data => ({ data, message: 'Paciente creado' })))(data),
     update: (id, d)  => wrapLocal((id, d) => window.localDB.patients.update(id, d).then(data => ({ data, message: 'Actualizado' })))(id, d),
     delete: (id)     => wrapLocal(window.localDB.patients.delete)(id),
+  },
+
+  settings: {
+    get:  () => Promise.resolve({ data: {} }),
+    save: () => Promise.resolve({ success: true }),
+  },
+
+  messages: {
+    list: () => Promise.resolve({ data: [], total: 0 }),
+  },
+
+  odontogram: {
+    get:    () => Promise.resolve({ data: [] }),
+    create: () => Promise.resolve({ data: {} }),
+    delete: () => Promise.resolve({ success: true }),
   },
 
   health: () => Promise.resolve({ status: 'OK', app: 'DentalFlow', version: '1.0.0-apk', mode: 'local' }),

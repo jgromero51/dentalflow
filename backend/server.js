@@ -12,6 +12,11 @@ const os      = require('os');
 const appointmentsRouter     = require('./routes/appointments');
 const patientsRouter         = require('./routes/patients');
 const webhookRouter          = require('./routes/webhook');
+const settingsRouter         = require('./routes/settings');
+const authRouter             = require('./routes/auth');
+const messagesRouter         = require('./routes/messages');
+const odontogramRouter       = require('./routes/odontogram');
+const { requireAuth }        = require('./middleware/auth');
 const { initializeDatabase } = require('./db/database');
 const { startScheduler }     = require('./services/scheduler');
 
@@ -48,9 +53,16 @@ const frontendPath = path.join(__dirname, '..', 'frontend');
 app.use(express.static(frontendPath));
 
 // ---- Rutas API ----
-app.use('/api/appointments', appointmentsRouter);
-app.use('/api/patients',     patientsRouter);
-app.use('/api/webhook',      webhookRouter);
+// Públicas (no requieren token)
+app.use('/api/auth',         authRouter);
+app.use('/api/webhook',      webhookRouter); // WhatsApp llama sin token
+
+// Protegidas (requieren JWT)
+app.use('/api/appointments', requireAuth, appointmentsRouter);
+app.use('/api/patients',     requireAuth, patientsRouter);
+app.use('/api/settings',     requireAuth, settingsRouter);
+app.use('/api/messages',     requireAuth, messagesRouter);
+app.use('/api/odontogram',   requireAuth, odontogramRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', app: 'DentalFlow', version: '1.0.0', demoMode: process.env.DEMO_MODE === 'true' });

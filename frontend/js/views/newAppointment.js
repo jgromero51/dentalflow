@@ -55,7 +55,6 @@ const NewAppointmentView = {
         </div>
       </div>
 
-      <!-- Duración -->
       <div class="form-group">
         <label class="form-label">Duración</label>
         <div class="duration-chips" id="duration-chips">
@@ -64,6 +63,18 @@ const NewAppointmentView = {
           `).join('')}
         </div>
         <input type="hidden" id="appt-duracion" value="30" />
+      </div>
+
+      <!-- Finanzas -->
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Costo Estimado ($)</label>
+          <input type="number" id="appt-costo" class="form-control" placeholder="0.00" min="0" step="0.01" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monto Pagado ($)</label>
+          <input type="number" id="appt-pagado" class="form-control" placeholder="0.00" min="0" step="0.01" />
+        </div>
       </div>
 
       <!-- Descripción -->
@@ -234,6 +245,8 @@ const NewAppointmentView = {
     const fecha = document.getElementById('appt-fecha').value;
     const hora  = document.getElementById('appt-hora').value;
     const desc  = document.getElementById('appt-descripcion').value.trim();
+    const costo = parseFloat(document.getElementById('appt-costo')?.value) || 0;
+    const pagado= parseFloat(document.getElementById('appt-pagado')?.value) || 0;
     const dur   = this.selectedDuration;
 
     if (!fecha || !hora) { Toast.error('Completá la fecha y hora'); return; }
@@ -242,6 +255,8 @@ const NewAppointmentView = {
       fecha_hora_inicio: `${fecha}T${hora}:00`,
       duracion_minutos:  dur,
       descripcion:       desc || null,
+      costo_estimado:    costo,
+      monto_pagado:      pagado,
     };
 
     if (this.selectedPatient) {

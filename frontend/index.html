@@ -65,12 +65,19 @@
         <span class="brand-name">DentalFlow</span>
       </div>
       <nav class="header-nav" id="header-nav">
-        <button class="nav-btn active" data-route="appointments" id="nav-appointments" title="Citas">
+        <button class="nav-btn active" data-route="dashboard" id="nav-dashboard" title="Inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Inicio</span>
+        </button>
+        <button class="nav-btn" data-route="appointments" id="nav-appointments" title="Agenda">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
             <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          <span>Citas</span>
+          <span>Agenda</span>
         </button>
         <button class="nav-btn" data-route="patients" id="nav-patients" title="Pacientes">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -80,6 +87,77 @@
           </svg>
           <span>Pacientes</span>
         </button>
+        <!-- Ajustes con dropdown -->
+        <div class="nav-dropdown" id="nav-dropdown-settings">
+          <button class="nav-btn" id="nav-settings" title="Ajustes"
+                  onclick="NavDropdown.toggle(event)" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Ajustes</span>
+            <svg class="nav-dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Panel del dropdown -->
+          <div class="nav-dropdown-panel" id="settings-dropdown-panel" role="menu">
+            <!-- Opción: Configuración de clínica -->
+            <button class="nav-dropdown-item" role="menuitem"
+                    onclick="NavDropdown.close(); Router.navigate('settings');">
+              <span class="nav-dropdown-item-icon">⚙️</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Configuración</div>
+                <div class="nav-dropdown-item-desc">Clínica, horarios y recordatorios</div>
+              </div>
+            </button>
+
+            <!-- Opción: Registro de Mensajes -->
+            <button class="nav-dropdown-item" role="menuitem"
+                    onclick="NavDropdown.close(); Router.navigate('messages');">
+              <span class="nav-dropdown-item-icon">📩</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Registro de Mensajes</div>
+                <div class="nav-dropdown-item-desc">Historial de WhatsApp y respuestas</div>
+              </div>
+            </button>
+
+            <!-- Opción: Instalar App (Oculto por defecto) -->
+            <button class="nav-dropdown-item" role="menuitem" id="btn-install-pwa" style="display: none;">
+              <span class="nav-dropdown-item-icon">📱</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Instalar Aplicación</div>
+                <div class="nav-dropdown-item-desc">Instalar DentalFlow en este dispositivo</div>
+              </div>
+            </button>
+
+            <div class="nav-dropdown-divider"></div>
+
+            <!-- Opción: Cerrar sesión (paso 1) -->
+            <button class="nav-dropdown-item nav-dropdown-item--danger"
+                    id="btn-logout-step1"
+                    onclick="NavDropdown.showLogoutConfirm(event)">
+              <span class="nav-dropdown-item-icon">🚪</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Cerrar Sesión</div>
+                <div class="nav-dropdown-item-desc">Salir de tu cuenta</div>
+              </div>
+            </button>
+
+            <!-- Confirmación (paso 2) - oculto por defecto -->
+            <div id="logout-confirm-box" style="display:none;"
+                 class="nav-dropdown-confirm">
+              <span class="nav-dropdown-confirm-text">¿Segúro que querés salir?</span>
+              <div class="nav-dropdown-confirm-btns">
+                <button class="nav-dropdown-confirm-cancel"
+                        onclick="NavDropdown.cancelLogout(event)">No</button>
+                <button class="nav-dropdown-confirm-ok"
+                        onclick="NavDropdown.doLogout(event)">¡Sí, salir!</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -146,8 +224,15 @@
 
   <script src="/js/components/toast.js"></script>
   <script src="/js/components/calendar.js"></script>
+  <script src="/js/components/odontogram.js"></script>
+  <script src="/js/views/dashboard.js"></script>
+  <script src="/js/views/messages.js"></script>
   <script src="/js/views/appointments.js"></script>
   <script src="/js/views/newAppointment.js"></script>
+  <script src="/js/views/patients.js"></script>
+  <script src="/js/views/patientDetail.js"></script>
+  <script src="/js/views/auth.js"></script>
+  <script src="/js/views/settings.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

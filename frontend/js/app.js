@@ -31,10 +31,20 @@ document.getElementById('modal-overlay')?.addEventListener('click', (e) => {
 // ============================================================
 // ROUTER
 // ============================================================
+// Promesa que se resuelve cuando init() termina el chequeo de auth
+let _resolveInit;
+const _initReady = new Promise(res => { _resolveInit = res; });
+
 const Router = {
   routes: {
+    'dashboard':    renderDashboard,
     'appointments': renderAppointments,
     'patients':     renderPatients,
+    'patient':      renderPatientDetail,
+    'messages':     renderMessages,
+    'settings':     renderSettings,
+    'login':        renderLogin,
+    'setup':        renderSetup,
   },
 
   navigate(route) {
@@ -42,20 +52,48 @@ const Router = {
   },
 
   async handleRoute() {
-    const hash   = window.location.hash.replace('#', '') || 'appointments';
+    // Esperar a que init() haya evaluado la autenticación antes de renderizar
+    await _initReady;
+
+    const hash   = window.location.hash.replace('#', '') || 'dashboard';
     const main   = document.getElementById('app-main');
 
     // Actualizar nav activo
     document.querySelectorAll('.nav-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.route === hash);
+      const isRoute = b.dataset.route === hash;
+      b.classList.toggle('active', isRoute);
     });
 
-    // Ocultar FAB en vista de pacientes
-    const fab = document.getElementById('fab-new-appointment');
-    fab.style.display = hash === 'patients' ? 'none' : 'flex';
+    // Parametrización de rutas (ej. patient/123)
+    let routeKey = hash;
+    let routeParams = null;
+    if (hash.startsWith('patient/')) {
+      routeKey = 'patient';
+      routeParams = hash.split('/')[1];
+    }
 
-    const handler = this.routes[hash] || this.routes['appointments'];
-    await handler(main);
+    const isAuthView = routeKey === 'login' || routeKey === 'setup';
+    const fab = document.getElementById('fab-new-appointment');
+    const nav = document.getElementById('header-nav');
+
+    if (fab) fab.style.display = (isAuthView || routeKey === 'patients' || routeKey === 'patient' || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
+    if (nav) nav.style.display = isAuthView ? 'none' : 'flex';
+
+    // Cerrar dropdown de ajustes si estaba abierto
+    if (window.NavDropdown) NavDropdown.close();
+
+    const handler = this.routes[routeKey] || this.routes['dashboard'];
+    try {
+      await handler(main, routeParams);
+    } catch (err) {
+      console.error('Route error:', err);
+      if (err.status === 401) {
+        // El api.js ya maneja la redirección, pero por seguridad:
+        if (window.location.hash !== '#login') {
+           this.navigate('login');
+        }
+      }
+    }
   },
 };
 
@@ -65,135 +103,38 @@ window.Router = Router;
 // ============================================================
 // VISTAS
 // ============================================================
+async function renderDashboard(container) {
+  await DashboardView.render(container);
+}
+
 async function renderAppointments(container) {
   await AppointmentsView.render(container);
 }
 
+async function renderSettings(container) {
+  await SettingsView.render(container);
+}
+
+async function renderMessages(container) {
+  await MessagesView.render(container);
+}
+
+async function renderLogin(container) {
+  LoginView.render(container);
+}
+
+async function renderSetup(container) {
+  SetupView.render(container);
+}
+
 async function renderPatients(container) {
-  container.innerHTML = '<div class="fade-in" id="patients-view"></div>';
-  const view = document.getElementById('patients-view');
-  view.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loading-spinner" style="margin:0 auto;"></div></div>';
-
-  try {
-    const res = await api.patients.list();
-    const patients = res.data || [];
-
-    view.innerHTML = `
-      <div class="section-header" style="margin-bottom:12px;">
-        <span class="section-title">Pacientes</span>
-        <span class="section-count">${patients.length}</span>
-      </div>
-      <div class="form-group" style="margin-bottom:16px;">
-        <input type="text" id="patient-search-global" class="form-control"
-          placeholder="🔍 Buscar por nombre o teléfono..." />
-      </div>
-      <div id="patients-list">
-        ${renderPatientList(patients)}
-      </div>`;
-
-    // Búsqueda en tiempo real
-    let timeout;
-    document.getElementById('patient-search-global')?.addEventListener('input', (e) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(async () => {
-        const q = e.target.value.trim();
-        const r = await api.patients.list(q);
-        document.getElementById('patients-list').innerHTML = renderPatientList(r.data || []);
-      }, 350);
-    });
-  } catch (err) {
-    view.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>${err.message}</p></div>`;
-  }
+  await PatientsView.render(container); // Cambiaremos la lógica antigua por una vista limpia
 }
 
-function renderPatientList(patients) {
-  if (!patients.length) return `
-    <div class="empty-state">
-      <div class="empty-icon">👤</div>
-      <div class="empty-title">Sin pacientes</div>
-      <div class="empty-desc">Los pacientes se crean automáticamente al crear una cita.</div>
-    </div>`;
-
-  return patients.map(p => {
-    const initials = p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    return `
-    <div class="patient-card" onclick="showPatientDetail(${p.id})">
-      <div class="patient-avatar">${initials}</div>
-      <div class="patient-info">
-        <div class="patient-name">${p.nombre}</div>
-        <div class="patient-phone">${p.telefono}</div>
-        ${p.total_citas ? `<div class="patient-meta">${p.total_citas} cita${p.total_citas !== 1 ? 's' : ''}</div>` : ''}
-      </div>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b949e" stroke-width="2">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
-    </div>`;
-  }).join('');
+async function renderPatientDetail(container, patientId) {
+  await PatientDetailView.render(container, patientId);
 }
-
-async function showPatientDetail(patientId) {
-  try {
-    const res = await api.patients.get(patientId);
-    const p   = res.data;
-    const appts = p.appointments || [];
-    const estadoLabel = { pendiente: 'Pendiente', confirmada: 'Confirmada', cancelada: 'Cancelada', no_asistio: 'No asistió' };
-
-    document.getElementById('modal-title').textContent = p.nombre;
-    document.getElementById('modal-body').innerHTML = `
-      <div class="info-list card" style="margin-bottom:16px;">
-        <div class="info-row"><span class="info-key">📱 Teléfono</span><span class="info-val">${p.telefono}</span></div>
-        ${p.dni ? `<div class="info-row"><span class="info-key">🪪 DNI</span><span class="info-val">${p.dni}</span></div>` : ''}
-        <div class="info-row"><span class="info-key">📅 Registro</span><span class="info-val">${p.created_at?.split('T')[0] || '—'}</span></div>
-      </div>
-      <div class="section-header">
-        <span class="section-title">Historial de Citas</span>
-        <span class="section-count">${appts.length}</span>
-      </div>
-      ${appts.length === 0 ? '<div class="empty-state" style="padding:24px 0;"><div class="empty-desc">Sin citas registradas</div></div>' :
-        appts.map(a => {
-          const d = new Date(a.fecha_hora_inicio);
-          const fecha = d.toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' });
-          const hora  = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-          return `
-          <div class="card" style="margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <div>
-                <div style="font-weight:600;font-size:14px;">${fecha} — ${hora} hs</div>
-                ${a.descripcion ? `<div style="font-size:13px;color:var(--text-secondary);margin-top:3px;">🦷 ${a.descripcion}</div>` : ''}
-              </div>
-              <span class="badge badge-${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
-            </div>
-          </div>`;
-        }).join('')}
-      <div style="margin-top:16px;display:flex;gap:8px;">
-        <a href="https://wa.me/${p.telefono.replace(/\D/g,'')}" target="_blank" class="btn btn-success btn-sm">
-          💬 WhatsApp
-        </a>
-        <button class="btn btn-danger btn-sm" onclick="deletePatient(${p.id},'${p.nombre}')">
-          🗑 Eliminar
-        </button>
-      </div>`;
-
-    openModal();
-  } catch (err) {
-    Toast.error('Error al cargar paciente: ' + err.message);
-  }
-}
-
-async function deletePatient(id, nombre) {
-  if (!confirm(`¿Eliminar a "${nombre}" y todas sus citas?`)) return;
-  try {
-    await api.patients.delete(id);
-    Toast.success('Paciente eliminado');
-    closeModal();
-    renderPatients(document.getElementById('app-main'));
-  } catch (err) {
-    Toast.error('Error: ' + err.message);
-  }
-}
-
-window.showPatientDetail = showPatientDetail;
-window.deletePatient     = deletePatient;
+// El código antiguo de showPatientDetail se elimina ya que usaremos PatientDetailView
 
 // ============================================================
 // FAB — Nueva Cita
@@ -203,15 +144,118 @@ document.getElementById('fab-new-appointment')?.addEventListener('click', () => 
 });
 
 // ============================================================
-// NAV BUTTONS
+// NAV BUTTONS (Citas y Pacientes)
 // ============================================================
-document.querySelectorAll('.nav-btn').forEach(btn => {
+document.querySelectorAll('.nav-btn[data-route]').forEach(btn => {
   btn.addEventListener('click', () => Router.navigate(btn.dataset.route));
 });
 
 // ============================================================
-// PWA — Service Worker
+// NAV DROPDOWN — Menú de Ajustes
 // ============================================================
+const NavDropdown = {
+  _open: false,
+
+  toggle(e) {
+    e.stopPropagation();
+    this._open ? this.close() : this.open();
+  },
+
+  open() {
+    const wrapper = document.getElementById('nav-dropdown-settings');
+    if (wrapper) wrapper.classList.add('open');
+    this._open = true;
+    // Resetear confirmación al abrir
+    this._resetLogoutConfirm();
+  },
+
+  close() {
+    const wrapper = document.getElementById('nav-dropdown-settings');
+    if (wrapper) wrapper.classList.remove('open');
+    this._open = false;
+    this._resetLogoutConfirm();
+  },
+
+  goSettings() {
+    this.close();
+    Router.navigate('settings');
+  },
+
+  // Paso 1: mostrar mini confirmación
+  showLogoutConfirm(e) {
+    e.stopPropagation();
+    const step1 = document.getElementById('btn-logout-step1');
+    const box   = document.getElementById('logout-confirm-box');
+    if (step1) step1.style.display = 'none';
+    if (box)   box.style.display   = 'flex';
+  },
+
+  // Cancelar
+  cancelLogout(e) {
+    e.stopPropagation();
+    this._resetLogoutConfirm();
+  },
+
+  // Paso 2: ejecutar logout real
+  doLogout(e) {
+    e.stopPropagation();
+    this.close();
+    Auth.clearToken();
+    window.Router.navigate('login');
+  },
+
+  _resetLogoutConfirm() {
+    const step1 = document.getElementById('btn-logout-step1');
+    const box   = document.getElementById('logout-confirm-box');
+    if (step1) step1.style.display = '';
+    if (box)   box.style.display   = 'none';
+  }
+};
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#nav-dropdown-settings')) {
+    NavDropdown.close();
+  }
+});
+
+window.NavDropdown = NavDropdown;
+
+// ============================================================
+// PWA — Service Worker & Instalación
+// ============================================================
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevenir que Chrome muestre el mini-infobar
+  e.preventDefault();
+  // Guardar el evento para dispararlo más tarde
+  deferredPrompt = e;
+  // Mostrar el botón de instalación en la UI
+  const installBtn = document.getElementById('btn-install-pwa');
+  if (installBtn) {
+    installBtn.style.display = 'flex';
+    installBtn.onclick = async () => {
+      // Ocultar nuestro botón
+      installBtn.style.display = 'none';
+      // Mostrar el prompt nativo
+      deferredPrompt.prompt();
+      // Esperar a que el usuario responda al prompt
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`[PWA] Instalación ${outcome}`);
+      deferredPrompt = null;
+    };
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  // Ocultar botón si ya se instaló
+  const installBtn = document.getElementById('btn-install-pwa');
+  if (installBtn) installBtn.style.display = 'none';
+  deferredPrompt = null;
+  console.log('[PWA] DentalFlow ha sido instalado');
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
@@ -224,17 +268,50 @@ if ('serviceWorker' in navigator) {
 // ARRANQUE
 // ============================================================
 async function init() {
-  // Verificar conexión con el backend
+  // 1. Verificar si hay usuarios en el sistema
+  let hasUsers = false;
   try {
-    await api.health();
-  } catch {
-    Toast.warning('⚠️ Sin conexión al servidor. Verificá que el backend esté corriendo.');
+    const status = await api.auth.status();
+    hasUsers = status.hasUsers;
+  } catch (err) {
+    console.error('Auth status check failed:', err);
+    if (!err.status) {
+      Toast.warning('⚠️ Sin conexión al servidor. Verificá que el backend esté corriendo.');
+    }
   }
 
-  // Esconder loading y renderizar vista inicial
+  // Esconder loading
   document.getElementById('loading-screen')?.remove();
-  Router.handleRoute();
+
+  // 2. Determinar a qué ruta debemos ir
+  let targetRoute;
+  if (!hasUsers) {
+    targetRoute = 'setup';
+  } else if (Auth.isLoggedIn()) {
+    const currentHash = window.location.hash.replace('#', '');
+    // Si ya estamos en una vista válida de la app, quedarnos ahí
+    targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
+      ? currentHash
+      : 'dashboard';
+  } else {
+    targetRoute = 'login';
+  }
+
+  // 3. Establecer el hash correcto ANTES de desbloquear el router
+  //    Así handleRoute() siempre lee el hash definitivo.
+  window.location.hash = targetRoute;
+
+  // 4. Desbloquear el router y renderizar la ruta
+  _resolveInit();
+  await Router.handleRoute();
 }
+
+// Función global para cerrar sesión (compatible con el botón en settings.js)
+window.logout = function () {
+  if (!confirm('¿Cerrar sesión?')) return;
+  Auth.clearToken();
+  window.Router.navigate('login');
+};
 
 // Iniciar cuando el DOM esté listo
 if (document.readyState === 'loading') {

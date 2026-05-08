@@ -10,6 +10,7 @@
  */
 
 require('dotenv').config();
+const { getSettings } = require('../db/database');
 
 let openaiClient = null;
 
@@ -55,7 +56,8 @@ function formatHora(isoString) {
  * @returns {Promise<string>} Mensaje listo para enviar por WhatsApp
  */
 async function generateReminderMessage(appointment, tipo) {
-  const clinicName  = process.env.CLINIC_NAME || 'el consultorio odontológico';
+  const settings   = getSettings();
+  const clinicName = settings.clinic_name || process.env.CLINIC_NAME || 'el consultorio odontológico';
   const nombre      = appointment.paciente_nombre;
   const fecha       = formatFecha(appointment.fecha_hora_inicio);
   const hora        = formatHora(appointment.fecha_hora_inicio);

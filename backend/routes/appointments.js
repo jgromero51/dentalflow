@@ -132,7 +132,7 @@ router.get('/:id', (req, res) => {
 // POST /api/appointments — crear cita (con creación inline de paciente)
 router.post('/', (req, res) => {
   try {
-    let { patient_id, nombre, telefono, fecha_hora_inicio, duracion_minutos, descripcion } = req.body;
+    let { patient_id, nombre, telefono, fecha_hora_inicio, duracion_minutos, descripcion, costo_estimado, monto_pagado } = req.body;
 
     if (!fecha_hora_inicio) return res.status(400).json({ error: 'La fecha y hora de inicio es requerida' });
     if (!duracion_minutos || duracion_minutos < 15) return res.status(400).json({ error: 'La duración mínima es 15 minutos' });
@@ -166,9 +166,9 @@ router.post('/', (req, res) => {
     }
 
     const result = db.prepare(`
-      INSERT INTO appointments (patient_id, fecha_hora_inicio, duracion_minutos, descripcion, estado)
-      VALUES (?, ?, ?, ?, 'pendiente')
-    `).run(patient_id, fecha_hora_inicio, parseInt(duracion_minutos), descripcion || null);
+      INSERT INTO appointments (patient_id, fecha_hora_inicio, duracion_minutos, descripcion, estado, costo_estimado, monto_pagado)
+      VALUES (?, ?, ?, ?, 'pendiente', ?, ?)
+    `).run(patient_id, fecha_hora_inicio, parseInt(duracion_minutos), descripcion || null, parseFloat(costo_estimado) || 0, parseFloat(monto_pagado) || 0);
 
     const newAppt = db.prepare(`
       SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono
@@ -187,7 +187,7 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { fecha_hora_inicio, duracion_minutos, descripcion, estado } = req.body;
+    const { fecha_hora_inicio, duracion_minutos, descripcion, estado, costo_estimado, monto_pagado } = req.body;
 
     const appt = db.prepare('SELECT * FROM appointments WHERE id = ?').get(id);
     if (!appt) return res.status(404).json({ error: 'Cita no encontrada' });
@@ -208,9 +208,9 @@ router.put('/:id', (req, res) => {
     }
 
     db.prepare(`
-      UPDATE appointments SET fecha_hora_inicio=?, duracion_minutos=?, descripcion=?, estado=?,
+      UPDATE appointments SET fecha_hora_inicio=?, duracion_minutos=?, descripcion=?, estado=?, costo_estimado=?, monto_pagado=?,
         updated_at=datetime('now','localtime') WHERE id=?
-    `).run(newInicio, parseInt(newDuracion), descripcion??appt.descripcion, estado||appt.estado, id);
+    `).run(newInicio, parseInt(newDuracion), descripcion??appt.descripcion, estado||appt.estado, costo_estimado !== undefined ? parseFloat(costo_estimado) : appt.costo_estimado, monto_pagado !== undefined ? parseFloat(monto_pagado) : appt.monto_pagado, id);
 
     const updated = db.prepare(`
       SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono

@@ -116,6 +116,9 @@ async function initializeDatabase() {
       telefono   TEXT NOT NULL UNIQUE,
       dni        TEXT,
       notas      TEXT,
+      alergias   TEXT,
+      tipo_sangre TEXT,
+      enfermedades_previas TEXT,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime'))
     )
@@ -130,6 +133,8 @@ async function initializeDatabase() {
       estado                   TEXT NOT NULL DEFAULT 'pendiente',
       recordatorio_24h_enviado INTEGER NOT NULL DEFAULT 0,
       recordatorio_4h_enviado  INTEGER NOT NULL DEFAULT 0,
+      costo_estimado           REAL DEFAULT 0,
+      monto_pagado             REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       updated_at TEXT DEFAULT (datetime('now','localtime'))
     )
@@ -144,6 +149,69 @@ async function initializeDatabase() {
       enviado        INTEGER NOT NULL DEFAULT 0,
       error_detalle  TEXT,
       created_at     TEXT DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS odontogram_marks (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id     INTEGER NOT NULL REFERENCES patients(id),
+      diente_numero  INTEGER NOT NULL,
+      diagnostico    TEXT NOT NULL,
+      notas          TEXT,
+      created_at     TEXT DEFAULT (datetime('now','localtime'))
+    )
+  `);
+
+  // Tabla de configuración de la clínica
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key        TEXT PRIMARY KEY,
+      value      TEXT,
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    )
+  `);
+
+  // Migraciones seguras para añadir columnas a DB existente
+  const migrations = [
+    "ALTER TABLE patients ADD COLUMN alergias TEXT;",
+    "ALTER TABLE patients ADD COLUMN tipo_sangre TEXT;",
+    "ALTER TABLE patients ADD COLUMN enfermedades_previas TEXT;",
+    "ALTER TABLE appointments ADD COLUMN costo_estimado REAL DEFAULT 0;",
+    "ALTER TABLE appointments ADD COLUMN monto_pagado REAL DEFAULT 0;"
+  ];
+  for (const sql of migrations) {
+    try { _db.run(sql); } catch (e) { /* Columna ya existe, ignorar */ }
+  }
+
+  // Insertar valores por defecto solo si la tabla está vacía
+  const existingSettings = _db.exec('SELECT COUNT(*) as cnt FROM settings');
+  const cnt = existingSettings[0]?.values?.[0]?.[0] || 0;
+  if (cnt === 0) {
+    const defaults = [
+      ['clinic_name',         process.env.CLINIC_NAME    || 'Mi Clínica Odontológica'],
+      ['clinic_phone',        process.env.CLINIC_PHONE   || ''],
+      ['clinic_address',      ''],
+      ['clinic_email',        ''],
+      ['clinic_hours',        'Lun–Vie 9:00–18:00'],
+      ['clinic_welcome_msg',  '¡Hola! Soy el asistente virtual de {clinic_name}. ¿En qué puedo ayudarte?'],
+      ['reminder_24h_active', 'true'],
+      ['reminder_4h_active',  'true'],
+    ];
+    for (const [key, value] of defaults) {
+      _db.run('INSERT OR IGNORE INTO settings(key, value) VALUES(?, ?)', [key, value]);
+    }
+    console.log('[DB] ⚙️  Configuración inicial creada con valores por defecto');
+  }
+
+  // Tabla de usuarios (sistema de login)
+  _db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      username     TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role         TEXT NOT NULL DEFAULT 'admin',
+      created_at   TEXT DEFAULT (datetime('now','localtime')),
+      last_login   TEXT
     )
   `);
 
@@ -163,4 +231,17 @@ function toLocalISO(date = new Date()) {
          `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-module.exports = { db, initializeDatabase, toLocalISO };
+// ---- Helper: obtener settings como objeto plano ----
+function getSettings() {
+  if (!_db) return {};
+  const rows = _db.exec('SELECT key, value FROM settings');
+  if (!rows.length) return {};
+  const result = {};
+  const [columns, ...values] = [rows[0].columns, ...rows[0].values];
+  for (const row of rows[0].values) {
+    result[row[0]] = row[1];
+  }
+  return result;
+}
+
+module.exports = { db, initializeDatabase, toLocalISO, getSettings };
