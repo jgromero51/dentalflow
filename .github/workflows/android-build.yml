@@ -21,7 +21,14 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Copy web assets to Android (replaces cap sync)
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create local.properties with SDK path
+        working-directory: ./android
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
+
+      - name: Copy web assets to Android
         run: |
           mkdir -p android/app/src/main/assets/public
           cp -r frontend/. android/app/src/main/assets/public/
