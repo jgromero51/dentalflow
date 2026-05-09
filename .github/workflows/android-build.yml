@@ -29,12 +29,6 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Install Capacitor CLI locally
-        run: npm install @capacitor/cli @capacitor/core @capacitor/android --save-dev
-
-      - name: Add Android Platform
-        run: npx cap add android || echo "Android platform may already exist"
-
       - name: Sync Capacitor
         run: npx cap sync android
 
