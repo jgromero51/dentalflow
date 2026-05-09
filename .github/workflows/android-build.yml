@@ -26,8 +26,8 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Dependencies
-        run: npm install
+      - name: Install All Dependencies (including devDependencies)
+        run: npm install --include=dev
 
       - name: Sync Capacitor
         run: npx cap sync android
