@@ -26,11 +26,17 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install All Dependencies (including devDependencies)
+      - name: Install All Dependencies
         run: npm install --include=dev
 
-      - name: Sync Capacitor
-        run: npx cap sync android
+      - name: Show Capacitor version
+        run: npx cap --version
+
+      - name: List android folder
+        run: ls -la android/
+
+      - name: Sync Capacitor (verbose)
+        run: npx cap sync android --verbose
 
       - name: Make gradlew executable
         working-directory: ./android
