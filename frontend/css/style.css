@@ -726,6 +726,26 @@ input, textarea, select {
   max-width: 340px;
 }
 
+/* Link para cambiar entre login y crear cuenta */
+.auth-switch {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.auth-switch-link {
+  color: var(--primary);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: opacity var(--transition);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.auth-switch-link:hover { opacity: 0.8; }
+
 /* Setup step badge */
 .setup-step-badge {
   display: inline-block;

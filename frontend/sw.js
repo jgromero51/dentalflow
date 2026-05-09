@@ -4,7 +4,7 @@
  * Sin dependencias externas (100% offline-ready).
  */
 
-const CACHE_NAME = 'dentalflow-v6';
+const CACHE_NAME = 'dentalflow-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

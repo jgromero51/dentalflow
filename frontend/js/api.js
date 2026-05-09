@@ -148,6 +148,67 @@ const localApi = {
   },
 
   health: () => Promise.resolve({ status: 'OK', app: 'DentalFlow', version: '1.0.0-apk', mode: 'local' }),
+
+  // ---- Auth local (sin servidor) ----
+  auth: {
+    // Devuelve si ya existe al menos un usuario creado localmente
+    status() {
+      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      return Promise.resolve({ hasUsers: users.length > 0 });
+    },
+
+    // Crear primer usuario (setup)
+    async setup({ username, password, clinic_name }) {
+      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      if (users.find(u => u.username === username)) {
+        throw Object.assign(new Error('Ese nombre de usuario ya existe.'), { status: 409 });
+      }
+      const newUser = { username: username.trim(), password, clinic_name: clinic_name || 'Mi Clínica', role: 'admin' };
+      users.push(newUser);
+      localStorage.setItem('df_local_users', JSON.stringify(users));
+      // Guardar clinic_name
+      localStorage.setItem('df_clinic_name', clinic_name || 'Mi Clínica');
+      // Generar token simple
+      const token = btoa(`${username}:${Date.now()}`);
+      Auth.setToken(token);
+      Auth.setUser({ username, role: 'admin' });
+      return { token, username, role: 'admin' };
+    },
+
+    // Iniciar sesión
+    async login({ username, password }) {
+      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      const user = users.find(u => u.username === username && u.password === password);
+      if (!user) {
+        throw Object.assign(new Error('Usuario o contraseña incorrectos.'), { status: 401 });
+      }
+      const token = btoa(`${username}:${Date.now()}`);
+      Auth.setToken(token);
+      Auth.setUser({ username, role: user.role });
+      return { token, username, role: user.role };
+    },
+
+    // Info del usuario actual
+    me() {
+      const user = Auth.getUser();
+      if (!user) throw Object.assign(new Error('No autenticado'), { status: 401 });
+      return Promise.resolve({ data: user });
+    },
+
+    // Cambiar contraseña
+    async changePassword({ current_password, new_password }) {
+      const user = Auth.getUser();
+      if (!user) throw Object.assign(new Error('No autenticado'), { status: 401 });
+      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      const idx = users.findIndex(u => u.username === user.username && u.password === current_password);
+      if (idx === -1) throw Object.assign(new Error('Contraseña actual incorrecta.'), { status: 400 });
+      users[idx].password = new_password;
+      localStorage.setItem('df_local_users', JSON.stringify(users));
+      return { message: 'Contraseña actualizada.' };
+    },
+
+    logout() { Auth.clearToken(); },
+  },
 };
 
 // ---- Selección automática de modo ----

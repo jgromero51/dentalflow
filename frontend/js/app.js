@@ -284,12 +284,11 @@ async function init() {
   document.getElementById('loading-screen')?.remove();
 
   // 2. Determinar a qué ruta debemos ir
+  // Si ya hay un token → confiar en él y entrar directamente
+  // Si no hay token → mostrar login siempre (setup solo desde el link de login)
   let targetRoute;
-  if (!hasUsers) {
-    targetRoute = 'setup';
-  } else if (Auth.isLoggedIn()) {
+  if (Auth.isLoggedIn()) {
     const currentHash = window.location.hash.replace('#', '');
-    // Si ya estamos en una vista válida de la app, quedarnos ahí
     targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
       ? currentHash
       : 'dashboard';
