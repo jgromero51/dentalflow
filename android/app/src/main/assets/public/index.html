@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport-fit=cover es clave para iPhones con notch/Dynamic Island -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#00b4d8" media="(prefers-color-scheme: light)" />
+  <meta name="description" content="DentalFlow — Gestión de citas odontológicas con recordatorios automáticos por WhatsApp" />
+
+  <!-- ============================================================
+       iOS / Safari PWA — Meta Tags
+  ============================================================ -->
+  <!-- Activa modo standalone en iOS (se instala como app) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <!-- Barra de estado translúcida para aprovechar el área del notch -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="DentalFlow" />
+  <!-- Icono para pantalla de inicio en iOS -->
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <!-- Iconos para diferentes tamaños de pantalla iOS -->
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-192.png" />
+
+  <!-- ============================================================
+       Windows / Microsoft — Meta Tags
+  ============================================================ -->
+  <meta name="msapplication-TileColor" content="#0d1117" />
+  <meta name="msapplication-TileImage" content="/icons/icon-192.png" />
+  <meta name="msapplication-tap-highlight" content="no" />
+  <!-- Activa el botón "Instalar" en Edge/Chrome en Windows -->
+  <meta name="msapplication-starturl" content="/" />
+
+  <!-- ============================================================
+       General PWA / SEO
+  ============================================================ -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="application-name" content="DentalFlow" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <title>DentalFlow 🦷</title>
+
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Estilos -->
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ============================================================
+       HEADER / NAVBAR
+  ============================================================ -->
+  <header class="app-header" id="app-header">
+    <div class="header-content">
+      <div class="header-brand">
+        <span class="brand-icon">🦷</span>
+        <span class="brand-name">DentalFlow</span>
+      </div>
+      <nav class="header-nav" id="header-nav">
+        <button class="nav-btn active" data-route="dashboard" id="nav-dashboard" title="Inicio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+          <span>Inicio</span>
+        </button>
+        <button class="nav-btn" data-route="appointments" id="nav-appointments" title="Agenda">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span>Agenda</span>
+        </button>
+        <button class="nav-btn" data-route="patients" id="nav-patients" title="Pacientes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Pacientes</span>
+        </button>
+        <!-- Ajustes con dropdown -->
+        <div class="nav-dropdown" id="nav-dropdown-settings">
+          <button class="nav-btn" id="nav-settings" title="Ajustes"
+                  onclick="NavDropdown.toggle(event)" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span>Ajustes</span>
+            <svg class="nav-dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          <!-- Panel del dropdown -->
+          <div class="nav-dropdown-panel" id="settings-dropdown-panel" role="menu">
+            <!-- Opción: Configuración de clínica -->
+            <button class="nav-dropdown-item" role="menuitem"
+                    onclick="NavDropdown.close(); Router.navigate('settings');">
+              <span class="nav-dropdown-item-icon">⚙️</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Configuración</div>
+                <div class="nav-dropdown-item-desc">Clínica, horarios y recordatorios</div>
+              </div>
+            </button>
+
+            <!-- Opción: Registro de Mensajes -->
+            <button class="nav-dropdown-item" role="menuitem"
+                    onclick="NavDropdown.close(); Router.navigate('messages');">
+              <span class="nav-dropdown-item-icon">📩</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Registro de Mensajes</div>
+                <div class="nav-dropdown-item-desc">Historial de WhatsApp y respuestas</div>
+              </div>
+            </button>
+
+            <!-- Opción: Instalar App (Oculto por defecto) -->
+            <button class="nav-dropdown-item" role="menuitem" id="btn-install-pwa" style="display: none;">
+              <span class="nav-dropdown-item-icon">📱</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Instalar Aplicación</div>
+                <div class="nav-dropdown-item-desc">Instalar DentalFlow en este dispositivo</div>
+              </div>
+            </button>
+
+            <div class="nav-dropdown-divider"></div>
+
+            <!-- Opción: Cerrar sesión (paso 1) -->
+            <button class="nav-dropdown-item nav-dropdown-item--danger"
+                    id="btn-logout-step1"
+                    onclick="NavDropdown.showLogoutConfirm(event)">
+              <span class="nav-dropdown-item-icon">🚪</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Cerrar Sesión</div>
+                <div class="nav-dropdown-item-desc">Salir de tu cuenta</div>
+              </div>
+            </button>
+
+            <!-- Confirmación (paso 2) - oculto por defecto -->
+            <div id="logout-confirm-box" style="display:none;"
+                 class="nav-dropdown-confirm">
+              <span class="nav-dropdown-confirm-text">¿Segúro que querés salir?</span>
+              <div class="nav-dropdown-confirm-btns">
+                <button class="nav-dropdown-confirm-cancel"
+                        onclick="NavDropdown.cancelLogout(event)">No</button>
+                <button class="nav-dropdown-confirm-ok"
+                        onclick="NavDropdown.doLogout(event)">¡Sí, salir!</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============================================================
+       CONTENIDO PRINCIPAL (SPA)
+  ============================================================ -->
+  <main class="app-main" id="app-main">
+    <!-- Las vistas se renderizan aquí dinámicamente -->
+    <div class="loading-screen" id="loading-screen">
+      <div class="loading-logo">🦷</div>
+      <div class="loading-spinner"></div>
+      <p>Cargando DentalFlow...</p>
+    </div>
+  </main>
+
+  <!-- ============================================================
+       BOTÓN FLOTANTE (FAB) — Nueva Cita
+  ============================================================ -->
+  <button class="fab" id="fab-new-appointment" title="Nueva Cita" aria-label="Crear nueva cita">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  </button>
+
+  <!-- ============================================================
+       MODAL OVERLAY (para formularios)
+  ============================================================ -->
+  <div class="modal-overlay" id="modal-overlay" aria-hidden="true">
+    <div class="modal" id="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">Nueva Cita</h2>
+        <button class="modal-close" id="modal-close" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Formulario se inyecta dinámicamente -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       TOAST / NOTIFICACIONES
+  ============================================================ -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <!-- ============================================================
+       SCRIPTS
+  ============================================================ -->
+  <!-- Capacitor (solo activo en APK, ignorado en web) -->
+  <script>
+    // Si no existe Capacitor, define un stub vacío para evitar errores
+    if (typeof Capacitor === 'undefined') window.Capacitor = undefined;
+  </script>
+
+  <!-- Base de datos local (IndexedDB) para modo APK / offline -->
+  <script src="/js/localdb.js"></script>
+
+  <!-- API client (dual: servidor o local) -->
+  <script src="/js/api.js"></script>
+
+  <script src="/js/components/toast.js"></script>
+  <script src="/js/components/calendar.js"></script>
+  <script src="/js/components/odontogram.js"></script>
+  <script src="/js/views/dashboard.js"></script>
+  <script src="/js/views/messages.js"></script>
+  <script src="/js/views/appointments.js"></script>
+  <script src="/js/views/newAppointment.js"></script>
+  <script src="/js/views/patients.js"></script>
+  <script src="/js/views/patientDetail.js"></script>
+  <script src="/js/views/auth.js"></script>
+  <script src="/js/views/settings.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
