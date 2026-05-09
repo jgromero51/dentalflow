@@ -29,12 +29,22 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Install Capacitor CLI locally
+        run: npm install @capacitor/cli @capacitor/core @capacitor/android --save-dev
+
+      - name: Add Android Platform
+        run: npx cap add android || echo "Android platform may already exist"
+
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Make gradlew executable
+        working-directory: ./android
+        run: chmod +x gradlew
+
       - name: Build APK
         working-directory: ./android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
