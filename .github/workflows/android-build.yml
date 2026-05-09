@@ -15,14 +15,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Node.js es necesario para que node_modules/@capacitor/android
-      # esté disponible para Gradle (referenciado en capacitor.settings.gradle)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Install Node dependencies (Gradle needs @capacitor/android)
+      - name: Install Node dependencies
         run: npm install --include=dev
 
       # Java 21 requerido por Capacitor Android (JavaVersion.VERSION_21)
@@ -32,16 +30,32 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      # SDK 35 ya está pre-instalado en ubuntu-latest
+      # Setup Android SDK oficial
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+
+      - name: Install Android Platform 35 and Build Tools
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
       - name: Create local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
-      - name: Accept SDK licenses
+      # Diagnóstico: imprime lo instalado para facilitar debugging
+      - name: Diagnostic - Show SDK and capacitor structure
         run: |
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/tools/bin:$PATH"
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          echo "=== ANDROID SDK ==="
+          ls $ANDROID_SDK_ROOT/platforms/ 2>/dev/null || echo "No platforms"
+          ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "No build-tools"
+          echo "=== CAPACITOR ANDROID ==="
+          ls node_modules/@capacitor/android/capacitor/ 2>/dev/null | head -5 || echo "No capacitor android"
+          echo "=== LOCAL PROPERTIES ==="
+          cat android/local.properties
 
-      # Copiar frontend (equivalente a cap sync, sin necesitar el CLI)
+      # Copiar frontend (equivalente a cap sync)
       - name: Copy frontend assets into Android project
         run: |
           mkdir -p android/app/src/main/assets/public
@@ -52,12 +66,7 @@ jobs:
       - name: Create Cordova config.xml
         run: |
           mkdir -p android/app/src/main/res/xml
-          cat > android/app/src/main/res/xml/config.xml << 'EOF'
-          <?xml version='1.0' encoding='utf-8'?>
-          <widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-            <access origin="*" />
-          </widget>
-          EOF
+          printf '<?xml version='"'"'1.0'"'"' encoding='"'"'utf-8'"'"'?>\n<widget version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">\n  <access origin="*" />\n</widget>\n' > android/app/src/main/res/xml/config.xml
 
       - name: Make gradlew executable
         working-directory: ./android
@@ -65,7 +74,7 @@ jobs:
 
       - name: Build Debug APK
         working-directory: ./android
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --info 2>&1 | tail -100
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
