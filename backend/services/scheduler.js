@@ -38,33 +38,38 @@ function estaDentroVentana(fechaHoraInicio, minutosAntes) {
  * Job principal: revisar y enviar recordatorios pendientes.
  */
 async function checkAndSendReminders() {
+  const { knex } = require('../db/database');
   try {
-    // Obtener citas pendientes en las próximas 25 horas
-    const citas = db.prepare(`
-      SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono
-      FROM appointments a
-      JOIN patients p ON p.id = a.patient_id
-      WHERE a.estado = 'pendiente'
-        AND a.fecha_hora_inicio > datetime('now', 'localtime')
-        AND a.fecha_hora_inicio < datetime('now', 'localtime', '+25 hours')
-        AND (a.recordatorio_24h_enviado = 0 OR a.recordatorio_4h_enviado = 0)
-    `).all();
+    const ahora = new Date().toISOString();
+    const en25h = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
+
+    const citas = await knex('appointments as a')
+      .join('patients as p', 'a.patient_id', 'p.id')
+      .select('a.*', 'p.nombre as paciente_nombre', 'p.telefono as paciente_telefono')
+      .where('a.estado', 'pendiente')
+      .andWhere('a.fecha_hora_inicio', '>', ahora)
+      .andWhere('a.fecha_hora_inicio', '<', en25h)
+      .andWhere(function() {
+        this.where('a.recordatorio_24h_enviado', 0).orWhere('a.recordatorio_4h_enviado', 0);
+      });
 
     if (citas.length === 0) return;
 
     for (const cita of citas) {
-      // ---- Recordatorio 24 horas ----
       if (!cita.recordatorio_24h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 1440)) {
         await enviarRecordatorio(cita, '24h');
-        db.prepare("UPDATE appointments SET recordatorio_24h_enviado=1, updated_at=datetime('now','localtime') WHERE id=?")
-          .run(cita.id);
+        await knex('appointments').where('id', cita.id).update({
+          recordatorio_24h_enviado: 1,
+          updated_at: knex.fn.now()
+        });
       }
 
-      // ---- Recordatorio 4 horas ----
       if (!cita.recordatorio_4h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 240)) {
         await enviarRecordatorio(cita, '4h');
-        db.prepare("UPDATE appointments SET recordatorio_4h_enviado=1, updated_at=datetime('now','localtime') WHERE id=?")
-          .run(cita.id);
+        await knex('appointments').where('id', cita.id).update({
+          recordatorio_4h_enviado: 1,
+          updated_at: knex.fn.now()
+        });
       }
     }
   } catch (err) {
@@ -86,7 +91,7 @@ async function enviarRecordatorio(cita, tipo) {
     const result = await sendMessage(cita.paciente_telefono, mensaje);
 
     // 3. Registrar en message_log
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado, error_detalle)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(

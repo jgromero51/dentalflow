@@ -8,9 +8,9 @@ const { db }  = require('../db/database');
 
 // GET /api/odontogram/:patientId
 // Obtiene todas las marcas del odontograma de un paciente
-router.get('/:patientId', (req, res) => {
+router.get('/:patientId', async (req, res) => {
   try {
-    const marks = db.prepare(`
+    const marks = await db.prepare(`
       SELECT * FROM odontogram_marks
       WHERE patient_id = ?
       ORDER BY created_at ASC
@@ -27,7 +27,7 @@ router.get('/:patientId', (req, res) => {
 
 // POST /api/odontogram
 // Crea una nueva marca para un diente
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { patient_id, diente_numero, diagnostico, notas } = req.body;
 
@@ -35,12 +35,12 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'patient_id, diente_numero y diagnostico son requeridos' });
     }
 
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO odontogram_marks (patient_id, diente_numero, diagnostico, notas)
       VALUES (?, ?, ?, ?)
     `).run(patient_id, diente_numero, diagnostico, notas || null);
 
-    const newMark = db.prepare('SELECT * FROM odontogram_marks WHERE id = ?').get(result.lastInsertRowid);
+    const newMark = await db.prepare('SELECT * FROM odontogram_marks WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json({ data: newMark, message: 'Marca guardada' });
   } catch (err) {
     console.error('[Odontogram] Error al guardar:', err.message);
@@ -50,9 +50,9 @@ router.post('/', (req, res) => {
 
 // DELETE /api/odontogram/:id
 // Elimina una marca específica (si el doctor se equivocó)
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    db.prepare('DELETE FROM odontogram_marks WHERE id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM odontogram_marks WHERE id = ?').run(req.params.id);
     res.json({ message: 'Marca eliminada' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar marca' });

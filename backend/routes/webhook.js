@@ -11,7 +11,7 @@ const { processPatientResponse } = require('../services/ai');
 const { sendMessage }            = require('../services/whatsapp');
 
 // GET /api/webhook — Verificación inicial de Meta
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   const mode      = req.query['hub.mode'];
   const token     = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
@@ -53,7 +53,7 @@ router.post('/', async (req, res) => {
 
       // Buscar al paciente por teléfono
       const telefonoFormateado = fromPhone.startsWith('+') ? fromPhone : `+${fromPhone}`;
-      const patient = db.prepare('SELECT * FROM patients WHERE telefono = ?').get(telefonoFormateado);
+      const patient = await db.prepare('SELECT * FROM patients WHERE telefono = ?').get(telefonoFormateado);
 
       if (!patient) {
         console.log(`[Webhook] Paciente no registrado: ${telefonoFormateado}`);
@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
       }
 
       // Buscar la próxima cita pendiente del paciente
-      const appt = db.prepare(`
+      const appt = await db.prepare(`
         SELECT a.*, p.nombre as paciente_nombre
         FROM appointments a JOIN patients p ON p.id = a.patient_id
         WHERE a.patient_id = ?
@@ -80,17 +80,17 @@ router.post('/', async (req, res) => {
 
       // Actualizar estado según intención
       if (intencion === 'confirmar') {
-        db.prepare("UPDATE appointments SET estado='confirmada', updated_at=datetime('now','localtime') WHERE id=?")
+        await db.prepare("UPDATE appointments SET estado='confirmada', updated_at=datetime('now','localtime') WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ✅ Cita #${appt.id} CONFIRMADA por ${patient.nombre}`);
       } else if (intencion === 'cancelar') {
-        db.prepare("UPDATE appointments SET estado='cancelada', updated_at=datetime('now','localtime') WHERE id=?")
+        await db.prepare("UPDATE appointments SET estado='cancelada', updated_at=datetime('now','localtime') WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
       }
 
       // Guardar log del mensaje entrante
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado)
         VALUES (?, ?, 'respuesta_entrada', ?, 1)
       `).run(appt.id, patient.id, text);
@@ -98,7 +98,7 @@ router.post('/', async (req, res) => {
       // Enviar respuesta automática
       if (respuesta) {
         await sendMessage(telefonoFormateado, respuesta);
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado)
           VALUES (?, ?, 'respuesta_salida', ?, 1)
         `).run(appt.id, patient.id, respuesta);

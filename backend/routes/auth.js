@@ -17,9 +17,9 @@ const { signToken, requireAuth } = require('../middleware/auth');
 // GET /api/auth/status — ¿Hay algún usuario registrado?
 // El frontend lo usa al cargar para saber si mostrar Setup o Login
 // ============================================================
-router.get('/status', (req, res) => {
+router.get('/status', async (req, res) => {
   try {
-    const user = db.prepare('SELECT id FROM users LIMIT 1').get();
+    const user = await db.prepare('SELECT id FROM users LIMIT 1').get();
     res.json({ hasUsers: !!user });
   } catch (err) {
     res.status(500).json({ error: 'Error al verificar estado' });
@@ -32,7 +32,7 @@ router.get('/status', (req, res) => {
 // ============================================================
 router.post('/setup', async (req, res) => {
   try {
-    const existing = db.prepare('SELECT id FROM users LIMIT 1').get();
+    const existing = await db.prepare('SELECT id FROM users LIMIT 1').get();
     if (existing) {
       return res.status(403).json({ error: 'Ya existe un usuario registrado. Usá el login normal.' });
     }
@@ -47,15 +47,15 @@ router.post('/setup', async (req, res) => {
     }
 
     const hash = await bcrypt.hash(password, 12);
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO users(username, password_hash, role) VALUES(?, ?, ?)'
     ).run(username.trim().toLowerCase(), hash, 'admin');
 
     // Si se envió nombre de clínica, guardarlo en settings
     if (clinic_name && clinic_name.trim()) {
-      db.prepare(
-        `INSERT INTO settings(key, value, updated_at) VALUES('clinic_name', ?, datetime('now','localtime'))
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      await db.prepare(
+        `INSERT INTO settings(key, value) VALUES('clinic_name', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
       ).run(clinic_name.trim());
     }
 
@@ -81,7 +81,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Completá usuario y contraseña.' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase());
+    const user = await db.prepare('SELECT * FROM users WHERE username = ?').get(username.trim().toLowerCase());
 
     if (!user) {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
@@ -92,8 +92,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     }
 
-    // Actualizar último acceso
-    db.prepare(`UPDATE users SET last_login = datetime('now','localtime') WHERE id = ?`).run(user.id);
+    // Actualizar último acceso (sin esperar para no bloquear)
+    db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
 
     const token = signToken({ id: user.id, username: user.username, role: user.role });
 
@@ -109,9 +109,9 @@ router.post('/login', async (req, res) => {
 // ============================================================
 // GET /api/auth/me — Verificar token (requiere auth)
 // ============================================================
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
   try {
-    const user = db.prepare('SELECT id, username, role, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT id, username, role, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json({ success: true, data: user });
   } catch (err) {
@@ -133,14 +133,14 @@ router.post('/change-password', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
     }
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
     const valid = await bcrypt.compare(current_password, user.password_hash);
     if (!valid) {
       return res.status(401).json({ error: 'La contraseña actual es incorrecta.' });
     }
 
     const newHash = await bcrypt.hash(new_password, 12);
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
+    await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, req.user.id);
 
     console.log(`[Auth] 🔑 Contraseña actualizada para: "${user.username}"`);
     res.json({ success: true, message: 'Contraseña actualizada correctamente.' });
