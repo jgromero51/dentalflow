@@ -15,25 +15,17 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install All Dependencies
-        run: npm install --include=dev
-
-      - name: Verify Capacitor CLI
-        run: ./node_modules/.bin/cap --version
-
-      - name: Sync Capacitor
-        run: ./node_modules/.bin/cap sync android
+      - name: Copy web assets to Android (replaces cap sync)
+        run: |
+          mkdir -p android/app/src/main/assets/public
+          cp -r frontend/. android/app/src/main/assets/public/
+          cp capacitor.config.json android/app/src/main/assets/capacitor.config.json
 
       - name: Make gradlew executable
         working-directory: ./android
