@@ -29,14 +29,11 @@ jobs:
       - name: Install All Dependencies
         run: npm install --include=dev
 
-      - name: Show Capacitor version
-        run: npx cap --version
+      - name: Verify Capacitor CLI
+        run: ./node_modules/.bin/cap --version
 
-      - name: List android folder
-        run: ls -la android/
-
-      - name: Sync Capacitor (verbose)
-        run: npx cap sync android --verbose
+      - name: Sync Capacitor
+        run: ./node_modules/.bin/cap sync android
 
       - name: Make gradlew executable
         working-directory: ./android
