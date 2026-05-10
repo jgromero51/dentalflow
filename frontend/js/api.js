@@ -228,11 +228,15 @@ if (!IS_NATIVE) {
       _serverOk = false;
     }
     if (!_serverOk && window.localDB) {
-      console.warn('[API] Servidor no disponible → modo offline (IndexedDB)');
-      // Redirige todas las llamadas al modo local
+      console.warn('[API] Servidor no disponible → modo offline (LocalDB/Auth)');
+      // Redirige ABSOLUTAMENTE TODO al modo local
       Object.assign(api.appointments, localApi.appointments);
       Object.assign(api.patients,     localApi.patients);
-      api.health = localApi.health;
+      Object.assign(api.auth,         localApi.auth);
+      Object.assign(api.odontogram,   localApi.odontogram);
+      api.messages = localApi.messages;
+      api.settings = localApi.settings;
+      api.health   = localApi.health;
     }
     return _serverOk;
   };

@@ -286,13 +286,18 @@ async function init() {
   // 2. Determinar a qué ruta debemos ir
   // Si ya hay un token → confiar en él y entrar directamente
   // Si no hay token → mostrar login siempre (setup solo desde el link de login)
+  // 2. Determinar la ruta inicial
   let targetRoute;
   if (Auth.isLoggedIn()) {
     const currentHash = window.location.hash.replace('#', '');
     targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
       ? currentHash
-      : 'dashboard';
+      : 'appointments'; // Por defecto citas si está logueado
+  } else if (!hasUsers) {
+    // Si no hay usuarios en absoluto, forzar Setup
+    targetRoute = 'setup';
   } else {
+    // Si hay usuarios pero no está logueado, ir a Login
     targetRoute = 'login';
   }
 
