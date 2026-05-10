@@ -487,6 +487,24 @@ select.form-control {
 @media (min-width: 600px) {
   .app-main { padding: calc(var(--header-h) + 24px) 24px 80px; }
 }
+@media (max-width: 480px) {
+  .app-main { padding: calc(var(--header-h) + var(--safe-top) + 12px) 12px 100px; }
+  .brand-name { display: none; }
+  .header-nav { gap: 2px; }
+  .nav-btn { 
+    padding: 8px; 
+    min-width: 50px;
+    justify-content: center;
+  }
+  .nav-btn span { display: none; }
+  .nav-btn svg { width: 22px; height: 22px; }
+  
+  .nav-dropdown-panel {
+    right: -12px;
+    min-width: 200px;
+  }
+}
+
 @media (max-width: 400px) {
   .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
   .stats-strip { grid-template-columns: 1fr 1fr 1fr; }
