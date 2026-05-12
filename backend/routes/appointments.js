@@ -19,7 +19,7 @@ function formatHora(isoString) {
 }
 
 /** Verifica solapamiento. Retorna la cita conflictiva o null */
-function verificarConflicto(fechaHoraInicio, duracionMinutos, excludeId = null) {
+async function verificarConflicto(fechaHoraInicio, duracionMinutos, excludeId = null) {
   const inicio = new Date(fechaHoraInicio);
   const fin    = calcularFin(fechaHoraInicio, duracionMinutos);
   const fecha  = fechaHoraInicio.split('T')[0];
