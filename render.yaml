@@ -4,7 +4,7 @@ services:
     name: dentalflow
     runtime: node
     plan: starter # Plan Starter para evitar que la app se duerma
-    buildCommand: "cd backend && npm install"
+    buildCommand: "cd backend && npm install && npm rebuild sqlite3 --build-from-source"
     startCommand: "cd backend && npm start"
     disk:
       name: data
