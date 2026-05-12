@@ -1,17 +1,15 @@
-/**
- * DentalFlow — Configuración de Despliegue Profesional (SQLite + Disco Persistente)
- */
+# DentalFlow — Configuración de Despliegue Profesional (SQLite + Disco Persistente)
 services:
   - type: web
     name: dentalflow
     runtime: node
     plan: starter # Plan Starter para evitar que la app se duerma
-    buildCommand: "npm install && cd backend && npm install"
-    startCommand: "npm start"
+    buildCommand: "cd backend && npm install"
+    startCommand: "cd backend && npm start"
     disk:
       name: data
       mountPath: /data
-      sizeGB: 1 # Disco permanente para que los datos jamás se borren
+      sizeGB: 1 # Disco permanente
     envVars:
       - key: NODE_ENV
         value: development
