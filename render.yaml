@@ -1,6 +1,5 @@
 /**
- * DentalFlow — Configuración de Despliegue Profesional
- * Define el Servidor Web y la Base de Datos PostgreSQL
+ * DentalFlow — Configuración de Despliegue Profesional (SQLite + Disco Persistente)
  */
 services:
   - type: web
@@ -9,22 +8,18 @@ services:
     plan: starter # Plan Starter para evitar que la app se duerma
     buildCommand: "npm install && cd backend && npm install"
     startCommand: "npm start"
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1 # Disco permanente para que los datos jamás se borren
     envVars:
       - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: dentalflow-db
-          property: connectionString
+        value: development
+      - key: DB_PATH
+        value: /data/dentalflow.db
       - key: JWT_SECRET
         generateValue: true
       - key: WHATSAPP_VERIFY_TOKEN
         value: "dentalflow_secure_token_2024"
       - key: FRONTEND_URL
         value: "https://dentalflow-mqgh.onrender.com"
-
-databases:
-  - name: dentalflow-db
-    plan: starter # Plan Starter para tener persistencia y backups diarios
-    databaseName: dentalflow
-    user: dentalflow_admin

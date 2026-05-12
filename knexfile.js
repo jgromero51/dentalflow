@@ -5,7 +5,7 @@ module.exports = {
   development: {
     client: 'sqlite3',
     connection: {
-      filename: path.join(__dirname, 'backend', 'db', 'dentalflow.db')
+      filename: process.env.DB_PATH || path.join(__dirname, 'backend', 'db', 'dentalflow.db')
     },
     useNullAsDefault: true,
     migrations: {
