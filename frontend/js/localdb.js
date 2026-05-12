@@ -36,6 +36,9 @@ const _IDB = (() => {
           const ml = db.createObjectStore('message_log', { keyPath: 'id', autoIncrement: true });
           ml.createIndex('appointment_id', 'appointment_id', { unique: false });
         }
+        if (!db.objectStoreNames.contains('auth')) {
+          const auth = db.createObjectStore('auth', { keyPath: 'username' });
+        }
       };
       req.onsuccess  = (e) => { _db = e.target.result; resolve(_db); };
       req.onerror    = (e) => reject(e.target.error);
@@ -363,8 +366,33 @@ const localAppointments = {
   },
 };
 
+// ================================================================
+// AUTH (Local users)
+// ================================================================
+const localAuthStore = {
+  async list() {
+    await _IDB.open();
+    return _IDB.getAll('auth');
+  },
+  async get(username) {
+    await _IDB.open();
+    return new Promise((resolve, reject) => {
+      const req = _IDB.open().then(db => {
+        const r = db.transaction('auth','readonly').objectStore('auth').get(username);
+        r.onsuccess = () => resolve(r.result || null);
+        r.onerror   = () => reject(r.error);
+      });
+    });
+  },
+  async save(user) {
+    await _IDB.open();
+    return _IDB.put('auth', user);
+  }
+};
+
 window.localDB = {
   patients:     localPatients,
   appointments: localAppointments,
+  auth:         localAuthStore,
   open:         _IDB.open,
 };

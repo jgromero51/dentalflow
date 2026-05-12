@@ -152,22 +152,43 @@ const localApi = {
   // ---- Auth local (sin servidor) ----
   auth: {
     // Devuelve si ya existe al menos un usuario creado localmente
-    status() {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      return Promise.resolve({ hasUsers: users.length > 0 });
+    async status() {
+      // Migración rápida de localStorage a IndexedDB si es necesario
+      const legacy = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      if (legacy.length > 0 && window.localDB) {
+        for (const u of legacy) {
+          await window.localDB.auth.save(u);
+        }
+        localStorage.removeItem('df_local_users'); // Limpiar tras migrar
+      }
+
+      if (!window.localDB) return { hasUsers: legacy.length > 0 };
+      const users = await window.localDB.auth.list();
+      return { hasUsers: users.length > 0 };
     },
 
     // Crear primer usuario (setup)
     async setup({ username, password, clinic_name }) {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      if (users.find(u => u.username === username)) {
+      if (!window.localDB) throw new Error('Base de datos local no disponible');
+      
+      const existing = await window.localDB.auth.get(username);
+      if (existing) {
         throw Object.assign(new Error('Ese nombre de usuario ya existe.'), { status: 409 });
       }
-      const newUser = { username: username.trim(), password, clinic_name: clinic_name || 'Mi Clínica', role: 'admin' };
-      users.push(newUser);
-      localStorage.setItem('df_local_users', JSON.stringify(users));
-      // Guardar clinic_name
+
+      const newUser = { 
+        username: username.trim(), 
+        password, 
+        clinic_name: clinic_name || 'Mi Clínica', 
+        role: 'admin',
+        created_at: new Date().toISOString()
+      };
+      
+      await window.localDB.auth.save(newUser);
+      
+      // Guardar clinic_name en localStorage para acceso rápido UI
       localStorage.setItem('df_clinic_name', clinic_name || 'Mi Clínica');
+      
       // Generar token simple
       const token = btoa(`${username}:${Date.now()}`);
       Auth.setToken(token);
@@ -177,11 +198,13 @@ const localApi = {
 
     // Iniciar sesión
     async login({ username, password }) {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      const user = users.find(u => u.username === username && u.password === password);
-      if (!user) {
+      if (!window.localDB) throw new Error('Base de datos local no disponible');
+      
+      const user = await window.localDB.auth.get(username);
+      if (!user || user.password !== password) {
         throw Object.assign(new Error('Usuario o contraseña incorrectos.'), { status: 401 });
       }
+
       const token = btoa(`${username}:${Date.now()}`);
       Auth.setToken(token);
       Auth.setUser({ username, role: user.role });
@@ -199,11 +222,14 @@ const localApi = {
     async changePassword({ current_password, new_password }) {
       const user = Auth.getUser();
       if (!user) throw Object.assign(new Error('No autenticado'), { status: 401 });
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      const idx = users.findIndex(u => u.username === user.username && u.password === current_password);
-      if (idx === -1) throw Object.assign(new Error('Contraseña actual incorrecta.'), { status: 400 });
-      users[idx].password = new_password;
-      localStorage.setItem('df_local_users', JSON.stringify(users));
+      
+      const dbUser = await window.localDB.auth.get(user.username);
+      if (!dbUser || dbUser.password !== current_password) {
+        throw Object.assign(new Error('Contraseña actual incorrecta.'), { status: 400 });
+      }
+      
+      dbUser.password = new_password;
+      await window.localDB.auth.save(dbUser);
       return { message: 'Contraseña actualizada.' };
     },
 
