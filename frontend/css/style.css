@@ -487,7 +487,7 @@ select.form-control {
 @media (min-width: 600px) {
   .app-main { padding: calc(var(--header-h) + 24px) 24px 80px; }
 }
-@media (max-width: 480px) {
+@media (max-width: 650px) {
   .app-main { padding: calc(var(--header-h) + var(--safe-top) + 12px) 12px 100px; }
   .brand-name { display: none; }
   .header-nav { gap: 2px; }
