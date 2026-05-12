@@ -13,7 +13,7 @@ const { db }  = require('../db/database');
 // Listar pacientes (con búsqueda opcional)
 // Query params: ?q=nombre_o_telefono
 // ============================================================
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { q } = req.query;
 

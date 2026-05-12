@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 
 // ---- POST /api/settings ----
 // Body: { clinic_name: "...", clinic_phone: "...", ... }
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const allowed = [
     'clinic_name',
     'clinic_phone',
