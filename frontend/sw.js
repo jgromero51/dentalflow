@@ -4,7 +4,7 @@
  * Sin dependencias externas (100% offline-ready).
  */
 
-const CACHE_NAME = 'dentalflow-v8';
+const CACHE_NAME = 'dentalflow-v9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -70,20 +70,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Assets estáticos → Cache-first
+  // Resto de archivos (HTML, CSS, JS) → Network-first (intenta red, si falla usa caché)
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        // Cachear respuestas válidas nuevas
-        if (response && response.status === 200 && response.type === 'basic') {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+    fetch(request).then((response) => {
+      // Guardar una copia fresca en caché
+      if (response && response.status === 200 && response.type === 'basic') {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+      }
+      return response;
+    }).catch(() => {
+      // Si no hay red, buscar en caché
+      return caches.match(request).then((cached) => {
+        if (cached) return cached;
+        // Fallback final para navegación
+        if (request.mode === 'navigate') {
+          return caches.match('/index.html');
         }
-        return response;
-      }).catch(() => {
-        // Si todo falla, devolver index.html (SPA fallback)
-        return caches.match('/index.html');
       });
     })
   );
