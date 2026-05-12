@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DentalFlow | Panel Maestro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+
+  <!-- PANTALLA DE LOGIN DEL ADMIN -->
+  <div id="login-view" class="view active">
+    <div class="login-box">
+      <div class="brand">
+        <span class="icon">💎</span>
+        <h1>DentalFlow Admin</h1>
+      </div>
+      <p>Acceso exclusivo para administradores del sistema.</p>
+      
+      <form id="admin-login-form">
+        <div class="input-group">
+          <label>Usuario Maestro</label>
+          <input type="text" id="admin-user" required autocomplete="username">
+        </div>
+        <div class="input-group">
+          <label>Contraseña</label>
+          <input type="password" id="admin-pass" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-primary" id="btn-login">Ingresar al Panel</button>
+        <div id="login-error" class="error-msg"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD DEL ADMIN -->
+  <div id="dashboard-view" class="view">
+    <div class="sidebar">
+      <div class="brand">
+        <span class="icon">💎</span>
+        <h2>DentalFlow</h2>
+      </div>
+      <nav class="side-nav">
+        <button class="nav-btn active">📊 Resumen General</button>
+        <button class="nav-btn">👥 Clínicas / Usuarios</button>
+        <button class="nav-btn">⚙️ Configuración Servidor</button>
+      </nav>
+      <div class="sidebar-footer">
+        <button id="btn-logout" class="nav-btn danger">🚪 Cerrar Sesión</button>
+      </div>
+    </div>
+
+    <main class="main-content">
+      <header class="top-header">
+        <h1>Panel Maestro</h1>
+        <div class="admin-profile">Administrador Global</div>
+      </header>
+
+      <div class="content-scroll">
+        <!-- Estadísticas -->
+        <div class="stats-grid" id="stats-container">
+          <div class="stat-card skeleton"></div>
+          <div class="stat-card skeleton"></div>
+          <div class="stat-card skeleton"></div>
+          <div class="stat-card skeleton"></div>
+        </div>
+
+        <!-- Tabla de Usuarios -->
+        <section class="data-section">
+          <div class="section-header">
+            <h2>Clínicas Registradas</h2>
+            <button class="btn-secondary">Exportar CSV</button>
+          </div>
+          
+          <div class="table-wrapper">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Usuario</th>
+                  <th>Rol</th>
+                  <th>Alta en el Sistema</th>
+                  <th>Última Conexión</th>
+                  <th>Pacientes</th>
+                  <th>Citas</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body">
+                <tr><td colspan="8" class="loading-cell">Cargando datos del servidor...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/admin.js"></script>
+</body>
+</html>

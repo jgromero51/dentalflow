@@ -45,7 +45,7 @@ const Router = {
     'settings':     renderSettings,
     'login':        renderLogin,
     'setup':        renderSetup,
-    'admin':        renderAdmin,
+
   },
 
   navigate(route) {
@@ -128,10 +128,7 @@ async function renderSetup(container) {
   SetupView.render(container);
 }
 
-async function renderAdmin(container) {
-  await AdminView.render(container);
-  await AdminView.afterRender();
-}
+
 
 async function renderPatients(container) {
   await PatientsView.render(container); // Cambiaremos la lógica antigua por una vista limpia
@@ -311,12 +308,7 @@ async function init() {
   // 4. Desbloquear el router y renderizar la ruta
   _resolveInit();
 
-  // Mostrar el botón del Panel Maestro si el usuario es Admin
-  const user = Auth.getUser();
-  const adminBtn = document.getElementById('btn-admin-panel');
-  if (adminBtn) {
-    adminBtn.style.display = (user && user.role === 'admin') ? 'flex' : 'none';
-  }
+
 
   await Router.handleRoute();
 }

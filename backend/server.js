@@ -50,6 +50,10 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Servir panel de control maestro independiente
+app.use('/admin-portal', express.static(path.join(__dirname, '../frontend/admin')));
+
+// Servir frontend estático principal (App odontológica)
 const frontendPath = path.join(__dirname, '..', 'frontend');
 app.use(express.static(frontendPath));
 
