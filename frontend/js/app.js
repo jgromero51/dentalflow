@@ -293,12 +293,9 @@ async function init() {
     targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
       ? currentHash
       : 'appointments'; // Por defecto citas si está logueado
-  } else if (!hasUsers) {
-    // Si no hay usuarios en absoluto, forzar Setup
-    targetRoute = 'setup';
   } else {
-    // Si hay usuarios pero no está logueado, ir a Login
-    targetRoute = 'login';
+    // Siempre ir a Login por defecto si no está logueado, a menos que pida setup explícitamente
+    targetRoute = (window.location.hash === '#setup') ? 'setup' : 'login';
   }
 
   // 3. Establecer el hash correcto ANTES de desbloquear el router

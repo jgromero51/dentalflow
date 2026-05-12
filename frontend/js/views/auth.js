@@ -166,6 +166,13 @@ const SetupView = {
               Crear cuenta y comenzar
             </button>
           </form>
+
+          <div class="auth-switch">
+            ¿Ya tenés una cuenta?
+            <button type="button" class="auth-switch-link" onclick="Router.navigate('login')">
+              Iniciar sesión
+            </button>
+          </div>
         </div>
 
         <div class="auth-footer">Esta cuenta solo se crea una vez. Guardá tus credenciales en un lugar seguro.</div>
