@@ -19,6 +19,7 @@ const odontogramRouter       = require('./routes/odontogram');
 const { requireAuth }        = require('./middleware/auth');
 const { initializeDatabase } = require('./db/database');
 const { startScheduler }     = require('./services/scheduler');
+const adminRouter            = require('./routes/admin');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -63,6 +64,7 @@ app.use('/api/patients',     requireAuth, patientsRouter);
 app.use('/api/settings',     requireAuth, settingsRouter);
 app.use('/api/messages',     requireAuth, messagesRouter);
 app.use('/api/odontogram',   requireAuth, odontogramRouter);
+app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', app: 'DentalFlow', version: '1.0.0', demoMode: process.env.DEMO_MODE === 'true' });

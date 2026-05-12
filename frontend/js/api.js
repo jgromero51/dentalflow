@@ -105,6 +105,11 @@ const remoteApi = {
     logout() { Auth.clearToken(); },
   },
 
+  admin: {
+    users: () => remoteApi.request('GET', '/admin/users'),
+    stats: () => remoteApi.request('GET', '/admin/system-stats'),
+  },
+
   health: () => remoteApi.request('GET', '/health'),
 };
 
@@ -234,6 +239,11 @@ const localApi = {
     },
 
     logout() { Auth.clearToken(); },
+  },
+
+  admin: {
+    users: () => Promise.resolve({ data: [] }),
+    stats: () => Promise.resolve({ data: { total_users: 1, total_patients: 0, total_appointments: 0, total_messages: 0 } }),
   },
 };
 
