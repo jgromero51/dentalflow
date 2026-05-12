@@ -5,7 +5,10 @@
  *   - APK / OFFLINE (window.localDB disponible): usa IndexedDB directamente
  */
 
-const API_BASE = '/api';
+const REMOTE_URL = 'https://dentalflow-mqgh.onrender.com';
+const API_BASE   = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:')) 
+  ? `${REMOTE_URL}/api` 
+  : '/api';
 
 // ---- Gestión de sesión ----
 const Auth = {
@@ -248,36 +251,37 @@ const localApi = {
 };
 
 // ---- Selección automática de modo ----
-const api = IS_NATIVE ? localApi : remoteApi;
+// Por defecto intentamos usar el modo remoto (servidor)
+let api = remoteApi;
 
-// Si no es nativo pero no hay servidor, intenta detectarlo y cambiar a local
-if (!IS_NATIVE) {
-  const _origAppointmentsToday = api.appointments.today;
-  let _serverOk = null;
+// Si es nativo o web, verificamos si el servidor responde
+const _checkServer = async () => {
+  let serverOk = false;
+  try {
+    const r = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    serverOk = r.ok;
+  } catch (err) {
+    serverOk = false;
+  }
 
-  const _checkServer = async () => {
-    if (_serverOk !== null) return _serverOk;
-    try {
-      const r = await fetch('/api/health', { signal: AbortSignal.timeout(2000) });
-      _serverOk = r.ok;
-    } catch {
-      _serverOk = false;
-    }
-    if (!_serverOk && window.localDB) {
-      console.warn('[API] Servidor no disponible → modo offline (LocalDB/Auth)');
-      // Redirige ABSOLUTAMENTE TODO al modo local
-      Object.assign(api.appointments, localApi.appointments);
-      Object.assign(api.patients,     localApi.patients);
-      Object.assign(api.auth,         localApi.auth);
-      Object.assign(api.odontogram,   localApi.odontogram);
-      api.messages = localApi.messages;
-      api.settings = localApi.settings;
-      api.health   = localApi.health;
-    }
-    return _serverOk;
-  };
+  if (!serverOk && window.localDB) {
+    console.warn('[API] Servidor no disponible o modo offline → usando LocalDB');
+    // Redirigir métodos de la instancia actual de 'api' a localApi
+    Object.assign(api.appointments, localApi.appointments);
+    Object.assign(api.patients,     localApi.patients);
+    Object.assign(api.auth,         localApi.auth);
+    Object.assign(api.odontogram,   localApi.odontogram);
+    api.messages = localApi.messages;
+    api.settings = localApi.settings;
+    api.health   = localApi.health;
+    api.admin    = localApi.admin;
+  } else {
+    console.log('[API] Conectado al servidor profesional:', API_BASE);
+  }
+};
 
-  // Verificar al cargar
+// Ejecutar verificación al cargar
+if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _checkServer);
   } else {
