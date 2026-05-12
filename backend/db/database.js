@@ -15,9 +15,8 @@ const db = {
     return {
       async all(...params) {
         const result = await knex.raw(sql, params.flat());
-        // Knex raw devuelve cosas distintas según el driver
-        if (environment === 'development') return result; // SQLite
-        return result.rows; // Postgres
+        // Knex raw devuelve cosas distintas según el driver. En SQLite es un array, en Postgres tiene .rows
+        return result.rows ? result.rows : result;
       },
       async get(...params) {
         const rows = await this.all(...params);
@@ -25,7 +24,9 @@ const db = {
       },
       async run(...params) {
         const result = await knex.raw(sql, params.flat());
-        if (environment === 'development') {
+        const isSQLite = knexConfig[environment].client === 'sqlite3';
+        
+        if (isSQLite) {
           // Para SQLite, necesitamos el id insertado si fue un INSERT
           if (sql.trim().toUpperCase().startsWith('INSERT')) {
             const lastId = await knex.raw('SELECT last_insert_rowid() as id');
