@@ -5,6 +5,7 @@
  */
 
 const knexConfig = require('../../knexfile');
+const bcrypt = require('bcryptjs');
 const environment = process.env.NODE_ENV || 'development';
 const knex = require('knex')(knexConfig[environment]);
 
@@ -55,10 +56,23 @@ async function initializeDatabase() {
     // Ejecutar migraciones pendientes
     await knex.migrate.latest();
     console.log('[DB] ✅ Migraciones completadas');
+
+    // Crear usuario admin por defecto si no hay usuarios
+    const usersCount = await knex('users').count('* as count').first();
+    const count = parseInt(usersCount.count || 0, 10);
+    
+    if (count === 0) {
+      console.log('[DB] No se detectaron usuarios. Creando usuario Admin por defecto...');
+      const hash = await bcrypt.hash('admin1', 12);
+      await knex('users').insert({
+        username: 'admin',
+        password_hash: hash,
+        role: 'admin'
+      });
+      console.log('[DB] ✅ Usuario por defecto creado: Admin (admin1)');
+    }
   } catch (err) {
-    console.error('[DB] ❌ Error en migraciones:', err.message);
-    // Si no hay tabla de migraciones, es posible que sea la primera vez
-    // En un entorno profesional, esto debería fallar, pero aquí intentaremos seguir.
+    console.error('[DB] ❌ Error en migraciones o inicialización:', err.message);
   }
 }
 
