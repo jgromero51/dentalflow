@@ -189,20 +189,20 @@ router.get('/:id/ai-summary', async (req, res) => {
 // ============================================================
 // POST /api/patients/voice-dictation
 // Procesar nota de voz con IA
-// Body: { audioBase64: "..." }
+// Body: { audioBase64: "...", ext: "webm" }
 // ============================================================
 router.post('/voice-dictation', async (req, res) => {
   try {
     const { transcribeAndFormatVoiceNote } = require('../services/ai');
-    const { audioBase64 } = req.body;
+    const { audioBase64, ext = 'webm' } = req.body;
     
     if (!audioBase64) return res.status(400).json({ error: 'Audio requerido' });
 
-    const formattedText = await transcribeAndFormatVoiceNote(audioBase64);
+    const formattedText = await transcribeAndFormatVoiceNote(audioBase64, ext);
     res.json({ data: formattedText });
   } catch (err) {
     console.error('[Patients] Error en dictado por voz:', err.message);
-    res.status(500).json({ error: 'Error al procesar dictado por voz' });
+    res.status(500).json({ error: err.message || 'Error al procesar dictado por voz' });
   }
 });
 

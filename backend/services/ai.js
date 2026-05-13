@@ -258,7 +258,7 @@ Reglas del resumen:
  * Recibe un archivo de audio en Base64, lo transcribe con Whisper 
  * y le da formato médico estructurado con GPT-4o-mini.
  */
-async function transcribeAndFormatVoiceNote(base64Audio) {
+async function transcribeAndFormatVoiceNote(base64Audio, ext = 'webm') {
   const ai = getOpenAIClient();
   if (!ai) throw new Error("La IA no está configurada.");
 
@@ -268,7 +268,7 @@ async function transcribeAndFormatVoiceNote(base64Audio) {
   
   // Guardamos el buffer en un archivo temporal porque el SDK lo requiere
   const buffer = Buffer.from(base64Audio, 'base64');
-  const tempPath = path.join(os.tmpdir(), `voice_note_${Date.now()}.webm`);
+  const tempPath = path.join(os.tmpdir(), `voice_note_${Date.now()}.${ext.replace(/[^a-z0-9]/gi, '')}`);
   fs.writeFileSync(tempPath, buffer);
 
   try {
@@ -304,7 +304,7 @@ Texto dictado: "${textoTranscripto}"`;
     return response.choices[0].message.content.trim();
   } catch (err) {
     console.error('[AI] Error en transcripción de voz:', err.message);
-    throw new Error("Error al procesar el audio con IA.");
+    throw new Error("Error en IA: " + err.message);
   } finally {
     // Limpiar archivo temporal
     try { fs.unlinkSync(tempPath); } catch (e) {}

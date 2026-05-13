@@ -83,7 +83,7 @@ const remoteApi = {
     update: (id, d)  => remoteApi.request('PUT', `/patients/${id}`, d),
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
     getSummary: (id) => remoteApi.request('GET', `/patients/${id}/ai-summary`),
-    voiceDictation: (audioBase64) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64 }),
+    voiceDictation: (audioBase64, ext) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64, ext }),
   },
 
   settings: {

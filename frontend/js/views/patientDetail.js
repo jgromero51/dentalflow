@@ -274,7 +274,13 @@ const PatientDetailView = {
         // Detener las pistas de audio para liberar el micrófono
         stream.getTracks().forEach(track => track.stop());
 
-        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        const mimeType = this.mediaRecorder.mimeType;
+        let ext = 'webm';
+        if (mimeType.includes('mp4') || mimeType.includes('m4a')) ext = 'm4a';
+        if (mimeType.includes('mpeg')) ext = 'mp3';
+        if (mimeType.includes('ogg')) ext = 'ogg';
+
+        const audioBlob = new Blob(this.audioChunks, { type: mimeType || 'audio/webm' });
         
         // Convert to Base64
         const reader = new FileReader();
@@ -286,7 +292,7 @@ const PatientDetailView = {
           btn.disabled = true;
 
           try {
-            const res = await api.patients.voiceDictation(base64data);
+            const res = await api.patients.voiceDictation(base64data, ext);
             const textArea = document.getElementById('pat-notas');
             const currentNotes = textArea.value.trim();
             const dateStr = new Date().toLocaleDateString('es-AR');
