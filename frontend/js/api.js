@@ -82,6 +82,8 @@ const remoteApi = {
     create: (data)   => remoteApi.request('POST', '/patients', data),
     update: (id, d)  => remoteApi.request('PUT', `/patients/${id}`, d),
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
+    getSummary: (id) => remoteApi.request('GET', `/patients/${id}/ai-summary`),
+    voiceDictation: (audioBase64) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64 }),
   },
 
   settings: {
@@ -138,6 +140,8 @@ const localApi = {
     create: (data)   => wrapLocal((d)  => window.localDB.patients.create(d).then(data => ({ data, message: 'Paciente creado' })))(data),
     update: (id, d)  => wrapLocal((id, d) => window.localDB.patients.update(id, d).then(data => ({ data, message: 'Actualizado' })))(id, d),
     delete: (id)     => wrapLocal(window.localDB.patients.delete)(id),
+    getSummary: (id) => Promise.resolve({ data: "El resumen con IA requiere conexión al servidor principal." }),
+    voiceDictation: () => Promise.resolve({ data: "El dictado por voz requiere conexión al servidor principal." }),
   },
 
   settings: {

@@ -155,6 +155,58 @@ router.put('/:id', async (req, res) => {
 });
 
 // ============================================================
+// GET /api/patients/:id/ai-summary
+// Generar resumen clínico usando IA
+// ============================================================
+router.get('/:id/ai-summary', async (req, res) => {
+  try {
+    const { generatePatientSummary } = require('../services/ai');
+    
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
+
+    const appointments = await db.prepare(`
+      SELECT * FROM appointments WHERE patient_id = ? ORDER BY fecha_hora_inicio DESC LIMIT 10
+    `).all(req.params.id);
+
+    const odontogramMarks = await db.prepare(`
+      SELECT diente_numero, diagnostico, notas FROM odontogram_marks WHERE patient_id = ?
+    `).all(req.params.id);
+
+    const odontogramText = odontogramMarks.map(m => 
+      `Diente ${m.diente_numero}: ${m.diagnostico} ${m.notas ? '(' + m.notas + ')' : ''}`
+    ).join(' | ');
+
+    const summary = await generatePatientSummary(patient, appointments, odontogramText);
+    
+    res.json({ data: summary });
+  } catch (err) {
+    console.error('[Patients] Error generando AI summary:', err.message);
+    res.status(500).json({ error: 'Error al generar el resumen con IA' });
+  }
+});
+
+// ============================================================
+// POST /api/patients/voice-dictation
+// Procesar nota de voz con IA
+// Body: { audioBase64: "..." }
+// ============================================================
+router.post('/voice-dictation', async (req, res) => {
+  try {
+    const { transcribeAndFormatVoiceNote } = require('../services/ai');
+    const { audioBase64 } = req.body;
+    
+    if (!audioBase64) return res.status(400).json({ error: 'Audio requerido' });
+
+    const formattedText = await transcribeAndFormatVoiceNote(audioBase64);
+    res.json({ data: formattedText });
+  } catch (err) {
+    console.error('[Patients] Error en dictado por voz:', err.message);
+    res.status(500).json({ error: 'Error al procesar dictado por voz' });
+  }
+});
+
+// ============================================================
 // DELETE /api/patients/:id
 // Eliminar paciente (y sus citas por CASCADE)
 // ============================================================

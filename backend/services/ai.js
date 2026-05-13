@@ -201,4 +201,114 @@ function classifyByKeywords(texto, nombre, fecha, hora) {
   };
 }
 
-module.exports = { generateReminderMessage, processPatientResponse };
+// ============================================================
+// FUNCIÓN 3: Resumen Clínico del Paciente
+// ============================================================
+
+/**
+ * Genera un resumen clínico rápido basado en el historial del paciente.
+ */
+async function generatePatientSummary(patient, appointments, odontogramText) {
+  const ai = getOpenAIClient();
+  if (!ai) return "La Inteligencia Artificial no está configurada. Agrega tu API Key de OpenAI para usar esta función.";
+
+  try {
+    const citasInfo = appointments.map(a => 
+      `- ${a.fecha_hora_inicio.split('T')[0]}: ${a.descripcion || 'Consulta'} (${a.estado})`
+    ).join('\n');
+
+    const prompt = `Eres un asistente clínico para un odontólogo.
+Se te proporciona el historial reciente de un paciente. Tu tarea es escribir un resumen MUY BREVE (máximo 3-4 líneas) 
+que el doctor pueda leer en 5 segundos antes de que el paciente entre al consultorio.
+
+Paciente: ${patient.nombre}
+Edad/Notas: ${patient.notas || 'Sin notas adicionales'}
+
+Últimas citas:
+${citasInfo || 'No tiene citas previas.'}
+
+Estado del Odontograma (hallazgos):
+${odontogramText || 'Sin hallazgos registrados.'}
+
+Reglas del resumen:
+- Mencionar por qué vino en sus últimas citas.
+- Mencionar si tiene tendencia a cancelar o faltar.
+- Mencionar hallazgos clave del odontograma si los hay.
+- Tono clínico, profesional, muy directo.`;
+
+    const response = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 150,
+      temperature: 0.5,
+    });
+
+    return response.choices[0].message.content.trim();
+  } catch (err) {
+    console.error(`[AI] Error generando resumen para ${patient.nombre}:`, err.message);
+    return "No se pudo generar el resumen en este momento debido a un error con el servicio de IA.";
+  }
+}
+
+// ============================================================
+// FUNCIÓN 4: Transcribir y Formatear Notas de Voz
+// ============================================================
+
+/**
+ * Recibe un archivo de audio en Base64, lo transcribe con Whisper 
+ * y le da formato médico estructurado con GPT-4o-mini.
+ */
+async function transcribeAndFormatVoiceNote(base64Audio) {
+  const ai = getOpenAIClient();
+  if (!ai) throw new Error("La IA no está configurada.");
+
+  const os = require('os');
+  const path = require('path');
+  const fs = require('fs');
+  
+  // Guardamos el buffer en un archivo temporal porque el SDK lo requiere
+  const buffer = Buffer.from(base64Audio, 'base64');
+  const tempPath = path.join(os.tmpdir(), `voice_note_${Date.now()}.webm`);
+  fs.writeFileSync(tempPath, buffer);
+
+  try {
+    // 1. Transcribir audio
+    const transcription = await ai.audio.transcriptions.create({
+      file: fs.createReadStream(tempPath),
+      model: 'whisper-1',
+      language: 'es'
+    });
+
+    const textoTranscripto = transcription.text;
+    console.log('[AI] Audio transcripto:', textoTranscripto);
+
+    if (!textoTranscripto || textoTranscripto.trim() === '') {
+      return "No se pudo escuchar ningún dictado. Intenta hablar más cerca del micrófono.";
+    }
+
+    // 2. Formatear texto
+    const prompt = `Eres un asistente de redacción médica para un odontólogo.
+El odontólogo dictó la siguiente evolución clínica. 
+Tu tarea es darle un formato profesional, conciso y estructurado (por ejemplo, separando por Motivo, Procedimiento, Medicación/Plan).
+Corrige cualquier posible error de transcripción en términos odontológicos.
+No agregues saludos ni introducciones, devuelve SOLO el texto final listo para pegar en la ficha del paciente.
+
+Texto dictado: "${textoTranscripto}"`;
+
+    const response = await ai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+    });
+
+    return response.choices[0].message.content.trim();
+  } catch (err) {
+    console.error('[AI] Error en transcripción de voz:', err.message);
+    throw new Error("Error al procesar el audio con IA.");
+  } finally {
+    // Limpiar archivo temporal
+    try { fs.unlinkSync(tempPath); } catch (e) {}
+  }
+}
+
+module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote };

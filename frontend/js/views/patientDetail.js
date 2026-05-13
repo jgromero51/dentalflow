@@ -2,6 +2,8 @@ const PatientDetailView = {
   currentTab: 'agenda',
   patient: null,
   odontogramData: [],
+  mediaRecorder: null,
+  audioChunks: [],
 
   async render(container, patientId) {
     if (!patientId) return Router.navigate('patients');
@@ -110,7 +112,14 @@ const PatientDetailView = {
     const p = this.patient;
     return `
       <div class="card" style="margin-bottom:16px;">
-        <h3 style="margin:0 0 12px 0; font-size:16px;">Datos Médicos</h3>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0; font-size:16px;">Datos Médicos</h3>
+          <button class="btn btn-sm" style="background: linear-gradient(45deg, #8a2be2, #4169e1); color:white; border:none;" onclick="PatientDetailView.getAISummary()">
+            ✨ Resumen Clínico IA
+          </button>
+        </div>
+        <div id="ai-summary-container" style="display:none; margin-bottom:16px; padding:12px; background:var(--bg-elevated); border-radius:8px; border-left:3px solid #8a2be2; font-size:14px; line-height:1.5;"></div>
+
         <div class="form-group" style="margin-bottom:12px;">
           <label>Alergias</label>
           <input type="text" id="pat-alergias" class="form-control" value="${p.alergias || ''}" placeholder="Ej. Penicilina, Látex..." onchange="PatientDetailView.saveMedicalData()">
@@ -120,8 +129,18 @@ const PatientDetailView = {
           <input type="text" id="pat-enf" class="form-control" value="${p.enfermedades_previas || ''}" placeholder="Ej. Hipertensión, Diabetes..." onchange="PatientDetailView.saveMedicalData()">
         </div>
         <div class="form-group">
-          <label>Notas Clínicas Generales</label>
-          <textarea id="pat-notas" class="form-control" rows="2" placeholder="Notas adicionales..." onchange="PatientDetailView.saveMedicalData()">${p.notas || ''}</textarea>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <label style="margin:0;">Notas Clínicas Generales</label>
+            <button class="btn btn-sm" id="btn-dictar" style="background:#f1f3f5; color:#333; border:1px solid #ddd;" onclick="PatientDetailView.toggleDictation()">
+              🎙️ Dictar Evolución
+            </button>
+          </div>
+          <div id="dictation-status" style="display:none; color:#da3633; font-size:12px; margin-bottom:8px; align-items:center; gap:4px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#da3633;animation:pulse 1s infinite;"></span>
+            Grabando... Haz clic en detener para procesar con IA.
+          </div>
+          <textarea id="pat-notas" class="form-control" rows="4" placeholder="Notas adicionales..." onchange="PatientDetailView.saveMedicalData()">${p.notas || ''}</textarea>
+          <style>@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }</style>
         </div>
       </div>
       <div class="card">
@@ -209,6 +228,90 @@ const PatientDetailView = {
       this.patient.notas = notas;
     } catch(err) {
       Toast.error('Error al guardar datos: ' + err.message);
+    }
+  },
+
+  async getAISummary() {
+    const container = document.getElementById('ai-summary-container');
+    if (!container) return;
+    
+    container.style.display = 'block';
+    container.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);"><div class="loading-spinner" style="width:14px;height:14px;border-width:2px;"></div> Analizando historial con IA...</div>';
+    
+    try {
+      const res = await api.patients.getSummary(this.patient.id);
+      // Formatear el texto usando saltos de línea y emojis
+      const summaryHTML = res.data.replace(/\n/g, '<br>');
+      container.innerHTML = `<strong>✨ Resumen de la IA:</strong><br><div style="margin-top:8px;color:var(--text-primary);">${summaryHTML}</div>`;
+    } catch (err) {
+      container.innerHTML = `<span style="color:#da3633;">⚠️ Error al generar resumen: ${err.message}</span>`;
+    }
+  },
+
+  async toggleDictation() {
+    const btn = document.getElementById('btn-dictar');
+    const status = document.getElementById('dictation-status');
+    
+    if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+      this.mediaRecorder.stop();
+      btn.innerHTML = '🎙️ Dictar Evolución';
+      btn.style.background = '#f1f3f5';
+      btn.style.color = '#333';
+      status.style.display = 'none';
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaRecorder = new MediaRecorder(stream);
+      this.audioChunks = [];
+
+      this.mediaRecorder.ondataavailable = e => {
+        if (e.data.size > 0) this.audioChunks.push(e.data);
+      };
+
+      this.mediaRecorder.onstop = async () => {
+        // Detener las pistas de audio para liberar el micrófono
+        stream.getTracks().forEach(track => track.stop());
+
+        const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+        
+        // Convert to Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64data = reader.result.split(',')[1];
+          
+          btn.innerHTML = '<div class="loading-spinner" style="width:14px;height:14px;border-width:2px;border-top-color:#333;"></div> Procesando...';
+          btn.disabled = true;
+
+          try {
+            const res = await api.patients.voiceDictation(base64data);
+            const textArea = document.getElementById('pat-notas');
+            const currentNotes = textArea.value.trim();
+            const dateStr = new Date().toLocaleDateString('es-AR');
+            
+            const newEntry = `[${dateStr}]\n${res.data}`;
+            textArea.value = currentNotes ? `${currentNotes}\n\n${newEntry}` : newEntry;
+            
+            this.saveMedicalData();
+            Toast.success('Evolución transcrita y guardada.');
+          } catch(err) {
+            Toast.error('Error en dictado: ' + err.message);
+          } finally {
+            btn.innerHTML = '🎙️ Dictar Evolución';
+            btn.disabled = false;
+          }
+        };
+      };
+
+      this.mediaRecorder.start();
+      btn.innerHTML = '⏹️ Detener';
+      btn.style.background = '#ffe3e3';
+      btn.style.color = '#da3633';
+      status.style.display = 'flex';
+    } catch(err) {
+      Toast.error('No se pudo acceder al micrófono: ' + err.message);
     }
   }
 };
