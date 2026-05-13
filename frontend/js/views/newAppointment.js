@@ -268,6 +268,7 @@ const NewAppointmentView = {
       if (!telefono) { Toast.error('El teléfono WhatsApp es requerido'); return; }
       payload.nombre   = nombre;
       payload.telefono = telefono;
+      payload.patient_id = 'new';
     }
 
     btn.disabled = true;

@@ -146,7 +146,7 @@ router.post('/', async (req, res) => {
     if (!duracion_minutos || duracion_minutos < 15) return res.status(400).json({ error: 'La duración mínima es 15 minutos' });
     if (isNaN(new Date(fecha_hora_inicio).getTime())) return res.status(400).json({ error: 'Formato de fecha inválido' });
 
-    if (patient_id === 'new' && nombre && telefono) {
+    if ((!patient_id || patient_id === 'new') && nombre && telefono) {
       const tel = telefono.replace(/\D/g, '');
       let patient = await db.prepare('SELECT * FROM patients WHERE telefono = ?').get(tel);
       if (!patient) {
@@ -155,6 +155,7 @@ router.post('/', async (req, res) => {
       }
       p_id = patient.id;
     } else {
+      if (!patient_id) return res.status(400).json({ error: 'El ID del paciente es requerido.' });
       if (!await db.prepare('SELECT id FROM patients WHERE id = ?').get(patient_id)) {
         return res.status(400).json({ error: 'El paciente no existe.' });
       }

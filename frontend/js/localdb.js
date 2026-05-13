@@ -288,7 +288,7 @@ const localAppointments = {
     if (!duracion_minutos || duracion_minutos < 15) throw Object.assign(new Error('Duración mínima 15 min'), { status: 400 });
     if (isNaN(new Date(fecha_hora_inicio).getTime())) throw Object.assign(new Error('Fecha inválida'), { status: 400 });
 
-    if (!patient_id) {
+    if (!patient_id || patient_id === 'new') {
       if (!nombre || !telefono) throw Object.assign(new Error('Proporciona patient_id o nombre+teléfono'), { status: 400 });
       const tel = telefono.trim().startsWith('+') ? telefono.trim() : `+${telefono.trim()}`;
       const all = await _IDB.getAll('patients');
