@@ -1,42 +1,39 @@
 /**
- * DentalFlow — Ruta: Pacientes
- * 
- * CRUD completo de pacientes con búsqueda por nombre/teléfono.
+ * DentalFlow — Ruta: Pacientes (multi-tenant)
+ *
+ * Todas las queries filtran por req.user.id para que cada
+ * usuario (dentista) vea unicamente sus propios pacientes.
  */
 
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
 
-// ============================================================
 // GET /api/patients
-// Listar pacientes (con búsqueda opcional)
-// Query params: ?q=nombre_o_telefono
-// ============================================================
 router.get('/', async (req, res) => {
   try {
     const { q } = req.query;
-
+    const uid = req.user.id;
     let patients;
     if (q) {
       patients = await db.prepare(`
         SELECT p.*, COUNT(a.id) as total_citas
         FROM patients p
         LEFT JOIN appointments a ON a.patient_id = p.id
-        WHERE p.nombre LIKE ? OR p.telefono LIKE ?
+        WHERE (p.nombre LIKE ? OR p.telefono LIKE ?) AND p.user_id = ?
         GROUP BY p.id
         ORDER BY p.nombre ASC
-      `).all(`%${q}%`, `%${q}%`);
+      `).all(`%${q}%`, `%${q}%`, uid);
     } else {
       patients = await db.prepare(`
         SELECT p.*, COUNT(a.id) as total_citas
         FROM patients p
         LEFT JOIN appointments a ON a.patient_id = p.id
+        WHERE p.user_id = ?
         GROUP BY p.id
         ORDER BY p.nombre ASC
-      `).all();
+      `).all(uid);
     }
-
     res.json({ data: patients, total: patients.length });
   } catch (err) {
     console.error('[Patients] Error al listar:', err.message);
@@ -44,23 +41,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ============================================================
 // GET /api/patients/:id
-// Obtener paciente por ID con historial de citas
-// ============================================================
 router.get('/:id', async (req, res) => {
   try {
-    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+    const patient = await db.prepare(
+      'SELECT * FROM patients WHERE id = ? AND user_id = ?'
+    ).get(req.params.id, req.user.id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
-    if (!patient) {
-      return res.status(404).json({ error: 'Paciente no encontrado' });
-    }
-
-    // Historial de citas del paciente
     const appointments = await db.prepare(`
-      SELECT * FROM appointments
-      WHERE patient_id = ?
-      ORDER BY fecha_hora_inicio DESC
+      SELECT * FROM appointments WHERE patient_id = ? ORDER BY fecha_hora_inicio DESC
     `).all(req.params.id);
 
     res.json({ data: { ...patient, appointments } });
@@ -70,41 +60,28 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ============================================================
 // POST /api/patients
-// Crear nuevo paciente
-// Body: { nombre, telefono, dni?, notas? }
-// ============================================================
 router.post('/', async (req, res) => {
   try {
     const { nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas } = req.body;
+    const uid = req.user.id;
 
-    // Validaciones básicas
-    if (!nombre || !nombre.trim()) {
-      return res.status(400).json({ error: 'El nombre es requerido' });
-    }
-    if (!telefono || !telefono.trim()) {
-      return res.status(400).json({ error: 'El teléfono es requerido' });
-    }
+    if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es requerido' });
+    if (!telefono || !telefono.trim()) return res.status(400).json({ error: 'El telefono es requerido' });
 
-    // Normalizar teléfono: asegurar que empiece con +
-    const telefonoNorm = telefono.trim().startsWith('+')
-      ? telefono.trim()
-      : `+${telefono.trim()}`;
+    const telefonoNorm = telefono.trim().startsWith('+') ? telefono.trim() : '+' + telefono.trim();
 
-    // Verificar si ya existe ese teléfono
-    const existing = await db.prepare('SELECT id FROM patients WHERE telefono = ?').get(telefonoNorm);
-    if (existing) {
-      return res.status(400).json({ error: 'Ya existe un paciente con ese teléfono.' });
-    }
+    const existing = await db.prepare(
+      'SELECT id FROM patients WHERE telefono = ? AND user_id = ?'
+    ).get(telefonoNorm, uid);
+    if (existing) return res.status(400).json({ error: 'Ya existe un paciente con ese telefono.' });
 
     const result = await db.prepare(`
-      INSERT INTO patients (nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(nombre.trim(), telefonoNorm, dni || null, notas || null, alergias || null, tipo_sangre || null, enfermedades_previas || null);
+      INSERT INTO patients (nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(nombre.trim(), telefonoNorm, dni || null, notas || null, alergias || null, tipo_sangre || null, enfermedades_previas || null, uid);
 
     const newPatient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(result.lastInsertRowid);
-
     res.status(201).json({ data: newPatient, message: 'Paciente creado exitosamente' });
   } catch (err) {
     console.error('[Patients] Error al crear:', err.message);
@@ -112,29 +89,24 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ============================================================
 // PUT /api/patients/:id
-// Actualizar datos del paciente
-// ============================================================
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas } = req.body;
+  const uid = req.user.id;
 
   try {
-    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
-    if (!patient) {
-      return res.status(404).json({ error: 'Paciente no encontrado' });
-    }
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ? AND user_id = ?').get(id, uid);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
     let telefonoNorm = patient.telefono;
-    if (telefono) {
-      telefonoNorm = telefono.replace(/\D/g, '');
-    }
+    if (telefono) telefonoNorm = telefono.replace(/\D/g, '');
 
     await db.prepare(`
       UPDATE patients
-      SET nombre = ?, telefono = ?, dni = ?, notas = ?, alergias = ?, tipo_sangre = ?, enfermedades_previas = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      SET nombre = ?, telefono = ?, dni = ?, notas = ?, alergias = ?,
+          tipo_sangre = ?, enfermedades_previas = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND user_id = ?
     `).run(
       nombre ? nombre.trim() : patient.nombre,
       telefonoNorm,
@@ -143,7 +115,7 @@ router.put('/:id', async (req, res) => {
       alergias !== undefined ? alergias : patient.alergias,
       tipo_sangre !== undefined ? tipo_sangre : patient.tipo_sangre,
       enfermedades_previas !== undefined ? enfermedades_previas : patient.enfermedades_previas,
-      id
+      id, uid
     );
 
     const updated = await db.prepare('SELECT * FROM patients WHERE id = ?').get(id);
@@ -154,31 +126,26 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// ============================================================
 // GET /api/patients/:id/ai-summary
-// Generar resumen clínico usando IA
-// ============================================================
 router.get('/:id/ai-summary', async (req, res) => {
   try {
     const { generatePatientSummary } = require('../services/ai');
-    
-    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
     if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
-    const appointments = await db.prepare(`
-      SELECT * FROM appointments WHERE patient_id = ? ORDER BY fecha_hora_inicio DESC LIMIT 10
-    `).all(req.params.id);
+    const appointments = await db.prepare(
+      'SELECT * FROM appointments WHERE patient_id = ? ORDER BY fecha_hora_inicio DESC LIMIT 10'
+    ).all(req.params.id);
 
-    const odontogramMarks = await db.prepare(`
-      SELECT diente_numero, diagnostico, notas FROM odontogram_marks WHERE patient_id = ?
-    `).all(req.params.id);
+    const odontogramMarks = await db.prepare(
+      'SELECT diente_numero, diagnostico, notas FROM odontogram_marks WHERE patient_id = ?'
+    ).all(req.params.id);
 
-    const odontogramText = odontogramMarks.map(m => 
-      `Diente ${m.diente_numero}: ${m.diagnostico} ${m.notas ? '(' + m.notas + ')' : ''}`
+    const odontogramText = odontogramMarks.map(m =>
+      'Diente ' + m.diente_numero + ': ' + m.diagnostico + (m.notas ? ' (' + m.notas + ')' : '')
     ).join(' | ');
 
     const summary = await generatePatientSummary(patient, appointments, odontogramText);
-    
     res.json({ data: summary });
   } catch (err) {
     console.error('[Patients] Error generando AI summary:', err.message);
@@ -186,18 +153,12 @@ router.get('/:id/ai-summary', async (req, res) => {
   }
 });
 
-// ============================================================
 // POST /api/patients/voice-dictation
-// Procesar nota de voz con IA
-// Body: { audioBase64: "...", ext: "webm" }
-// ============================================================
 router.post('/voice-dictation', async (req, res) => {
   try {
     const { transcribeAndFormatVoiceNote } = require('../services/ai');
     const { audioBase64, ext = 'webm' } = req.body;
-    
     if (!audioBase64) return res.status(400).json({ error: 'Audio requerido' });
-
     const formattedText = await transcribeAndFormatVoiceNote(audioBase64, ext);
     res.json({ data: formattedText });
   } catch (err) {
@@ -206,19 +167,14 @@ router.post('/voice-dictation', async (req, res) => {
   }
 });
 
-// ============================================================
 // DELETE /api/patients/:id
-// Eliminar paciente (y sus citas por CASCADE)
-// ============================================================
 router.delete('/:id', async (req, res) => {
   try {
-    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(req.params.id);
-    if (!patient) {
-      return res.status(404).json({ error: 'Paciente no encontrado' });
-    }
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
-    await db.prepare('DELETE FROM patients WHERE id = ?').run(req.params.id);
-    res.json({ message: `Paciente "${patient.nombre}" eliminado` });
+    await db.prepare('DELETE FROM patients WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
+    res.json({ message: 'Paciente "' + patient.nombre + '" eliminado' });
   } catch (err) {
     console.error('[Patients] Error al eliminar:', err.message);
     res.status(500).json({ error: 'Error al eliminar paciente' });

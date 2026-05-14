@@ -1,7 +1,6 @@
 /**
- * DentalFlow — Módulo de Base de Datos (Knex.js)
- * 
- * Soporta SQLite (desarrollo) y PostgreSQL (producción).
+ * DentalFlow — Modulo de Base de Datos (Knex.js)
+ * Soporta SQLite (desarrollo) y PostgreSQL (produccion).
  */
 
 const knexConfig = require('../../knexfile');
@@ -15,7 +14,6 @@ const db = {
     return {
       async all(...params) {
         const result = await knex.raw(sql, params.flat());
-        // Knex raw devuelve cosas distintas según el driver. En SQLite es un array, en Postgres tiene .rows
         return result.rows ? result.rows : result;
       },
       async get(...params) {
@@ -25,43 +23,37 @@ const db = {
       async run(...params) {
         const result = await knex.raw(sql, params.flat());
         const isSQLite = knexConfig[environment].client === 'sqlite3';
-        
         if (isSQLite) {
-          // Para SQLite, necesitamos el id insertado si fue un INSERT
           if (sql.trim().toUpperCase().startsWith('INSERT')) {
             const lastId = await knex.raw('SELECT last_insert_rowid() as id');
             return { lastInsertRowid: lastId[0].id, changes: 1 };
           }
           return { changes: 1 };
         }
-        // Para Postgres
-        return { 
+        return {
           lastInsertRowid: result.rows?.[0]?.id || 0,
-          changes: result.rowCount 
+          changes: result.rowCount
         };
       }
     };
   },
-  
+
   async exec(sql) {
     return await knex.raw(sql);
   },
 
-  // Acceso directo a knex para consultas más modernas
   knex
 };
 
 async function initializeDatabase() {
-  console.log(`[DB] Inicializando en modo: ${environment}`);
+  console.log('[DB] Inicializando en modo: ' + environment);
   try {
-    // Ejecutar migraciones pendientes
     await knex.migrate.latest();
-    console.log('[DB] ✅ Migraciones completadas');
+    console.log('[DB] Migraciones completadas');
 
-    // Crear usuario admin por defecto si no hay usuarios
     const usersCount = await knex('users').count('* as count').first();
     const count = parseInt(usersCount.count || 0, 10);
-    
+
     if (count === 0) {
       console.log('[DB] No se detectaron usuarios. Creando usuario Admin por defecto...');
       const hash = await bcrypt.hash('admin1', 12);
@@ -70,25 +62,29 @@ async function initializeDatabase() {
         password_hash: hash,
         role: 'admin'
       });
-      console.log('[DB] ✅ Usuario por defecto creado: Admin (admin1)');
+      console.log('[DB] Usuario por defecto creado: Admin (admin1)');
     }
   } catch (err) {
-    console.error('[DB] ❌ Error en migraciones o inicialización:', err.message);
+    console.error('[DB] Error en migraciones o inicializacion:', err.message);
   }
 }
 
 function toLocalISO(date = new Date()) {
   const pad = n => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}` +
-         `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return date.getFullYear() + '-' + pad(date.getMonth()+1) + '-' + pad(date.getDate()) +
+         'T' + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds());
 }
 
-async function getSettings() {
-  const rows = await knex('settings').select('key', 'value');
+/**
+ * Obtiene settings de la BD.
+ * @param {number|null} userId - Si se provee, filtra por usuario. Si es null, devuelve todos.
+ */
+async function getSettings(userId = null) {
+  let query = knex('settings').select('key', 'value');
+  if (userId !== null) query = query.where('user_id', userId);
+  const rows = await query;
   const result = {};
-  rows.forEach(r => {
-    result[r.key] = r.value;
-  });
+  rows.forEach(r => { result[r.key] = r.value; });
   return result;
 }
 

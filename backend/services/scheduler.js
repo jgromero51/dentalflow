@@ -2,12 +2,7 @@
  * DentalFlow — Scheduler de Recordatorios
  *
  * Usa node-cron para revisar cada minuto si hay citas que
- * necesiten recordatorio de 24h o 4h y dispararlos automáticamente.
- *
- * Lógica:
- * - Cada minuto: buscar citas con estado 'pendiente' cuya diferencia
- *   con "ahora" sea <= ventana de tiempo Y el recordatorio no fue enviado.
- * - Generar mensaje con IA → enviar por WhatsApp → marcar como enviado.
+ * necesiten recordatorio de 24h o 4h y dispararlos automaticamente.
  */
 
 require('dotenv').config();
@@ -16,36 +11,26 @@ const { db } = require('../db/database');
 const { generateReminderMessage } = require('./ai');
 const { sendMessage }             = require('./whatsapp');
 
-// Ventana de tolerancia: disparar recordatorio si faltan X minutos ± 2 min
 const VENTANA_TOLERANCIA = 2; // minutos
 
-/**
- * Calcula si una cita está dentro de la ventana de recordatorio.
- * @param {string} fechaHoraInicio - ISO string de la cita
- * @param {number} minutosAntes    - 1440 (24h) o 240 (4h)
- * @returns {boolean}
- */
 function estaDentroVentana(fechaHoraInicio, minutosAntes) {
-  const ahora     = new Date();
+  const ahora      = new Date();
   const inicioCita = new Date(fechaHoraInicio);
   const diffMinutos = (inicioCita - ahora) / (1000 * 60);
-
   return diffMinutos >= (minutosAntes - VENTANA_TOLERANCIA) &&
          diffMinutos <= (minutosAntes + VENTANA_TOLERANCIA);
 }
 
-/**
- * Job principal: revisar y enviar recordatorios pendientes.
- */
 async function checkAndSendReminders() {
   const { knex } = require('../db/database');
   try {
     const ahora = new Date().toISOString();
     const en25h = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
 
+    // Incluir user_id del appointment para propagarlo al message_log
     const citas = await knex('appointments as a')
       .join('patients as p', 'a.patient_id', 'p.id')
-      .select('a.*', 'p.nombre as paciente_nombre', 'p.telefono as paciente_telefono')
+      .select('a.*', 'p.nombre as paciente_nombre', 'p.telefono as paciente_telefono', 'a.user_id')
       .where('a.estado', 'pendiente')
       .andWhere('a.fecha_hora_inicio', '>', ahora)
       .andWhere('a.fecha_hora_inicio', '<', en25h)
@@ -77,55 +62,42 @@ async function checkAndSendReminders() {
   }
 }
 
-/**
- * Genera y envía un recordatorio para una cita.
- */
 async function enviarRecordatorio(cita, tipo) {
-  console.log(`[Scheduler] Enviando recordatorio ${tipo} → ${cita.paciente_nombre} (${cita.fecha_hora_inicio})`);
+  console.log('[Scheduler] Enviando recordatorio ' + tipo + ' -> ' + cita.paciente_nombre + ' (' + cita.fecha_hora_inicio + ')');
 
   try {
-    // 1. Generar mensaje con IA
     const mensaje = await generateReminderMessage(cita, tipo);
+    const result  = await sendMessage(cita.paciente_telefono, mensaje);
 
-    // 2. Enviar por WhatsApp
-    const result = await sendMessage(cita.paciente_telefono, mensaje);
-
-    // 3. Registrar en message_log
+    // Propagar user_id del appointment al log
     await db.prepare(`
-      INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado, error_detalle)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado, error_detalle)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
       cita.id,
       cita.patient_id,
-      `recordatorio_${tipo}`,
+      cita.user_id || null,
+      'recordatorio_' + tipo,
       mensaje,
       result.success ? 1 : 2,
       result.error || null
     );
 
     if (result.success) {
-      console.log(`[Scheduler] ✅ Recordatorio ${tipo} enviado a ${cita.paciente_nombre}`);
+      console.log('[Scheduler] Recordatorio ' + tipo + ' enviado a ' + cita.paciente_nombre);
     } else {
-      console.error(`[Scheduler] ❌ Fallo al enviar recordatorio ${tipo}: ${result.error}`);
+      console.error('[Scheduler] Fallo al enviar recordatorio ' + tipo + ': ' + result.error);
     }
   } catch (err) {
-    console.error(`[Scheduler] Error al enviar recordatorio ${tipo} para cita #${cita.id}:`, err.message);
+    console.error('[Scheduler] Error al enviar recordatorio ' + tipo + ' para cita #' + cita.id + ':', err.message);
   }
 }
 
-/**
- * Inicia el scheduler de cron jobs.
- * Se llama desde server.js al arrancar la aplicación.
- */
 function startScheduler() {
-  // Ejecutar cada minuto
   cron.schedule('* * * * *', () => {
     checkAndSendReminders();
   });
-
-  console.log('[Scheduler] ⏰ Scheduler de recordatorios iniciado (cada minuto)');
-
-  // Ejecutar una vez al arrancar para no esperar el primer minuto
+  console.log('[Scheduler] Scheduler de recordatorios iniciado (cada minuto)');
   setTimeout(() => checkAndSendReminders(), 5000);
 }
 
