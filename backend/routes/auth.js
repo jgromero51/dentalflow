@@ -9,9 +9,23 @@
 
 const express  = require('express');
 const bcrypt   = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const { OAuth2Client } = require('google-auth-library');
 const router   = express.Router();
 const { db }         = require('../db/database');
 const { signToken, requireAuth } = require('../middleware/auth');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 // ============================================================
 // GET /api/auth/status — ¿Hay algún usuario registrado?
@@ -180,20 +194,119 @@ router.post('/forgot-password', async (req, res) => {
 
       await db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?').run(resetToken, resetExpires, user.id);
 
-      // Simulate sending email (in a real app, use SendGrid, Resend, Nodemailer, etc.)
-      console.log(`\n\n=== SIMULACIÓN DE CORREO ===`);
-      console.log(`Para: ${email} (Usuario: ${user.username})`);
-      console.log(`Asunto: Restablecer tu contraseña`);
-      console.log(`Mensaje: Usá este token para recuperar tu cuenta: ${resetToken}`);
-      console.log(`============================\n\n`);
+      const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/#reset-password/${resetToken}`;
+
+      try {
+        await transporter.sendMail({
+          from: `"DentalFlow" <${process.env.SMTP_USER}>`,
+          to: email,
+          subject: 'Restablecer tu contraseña en DentalFlow',
+          html: `
+            <h2>Recuperación de contraseña</h2>
+            <p>Hola ${user.username},</p>
+            <p>Recibimos una solicitud para restablecer tu contraseña. Haz clic en el siguiente enlace para crear una nueva:</p>
+            <a href="${resetLink}" style="display:inline-block;padding:10px 20px;background:#0d6efd;color:#fff;text-decoration:none;border-radius:5px;">Restablecer Contraseña</a>
+            <p>Si no solicitaste esto, puedes ignorar este correo.</p>
+          `
+        });
+        console.log(`[Auth] ✅ Correo de recuperación enviado a ${email}`);
+      } catch (mailErr) {
+        console.error('[Auth] Error enviando correo de recuperación:', mailErr.message);
+      }
     }
 
-    // Always return success to prevent email enumeration
     res.json({ success: true, message: 'Si el correo existe en nuestro sistema, recibirás un enlace de recuperación pronto.' });
 
   } catch (err) {
     console.error('[Auth] Error en forgot-password:', err.message);
     res.status(500).json({ error: 'Error al procesar la solicitud' });
+  }
+});
+
+// ============================================================
+// POST /api/auth/reset-password — Restablecer contraseña
+// ============================================================
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Faltan datos.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres.' });
+    }
+
+    const user = await db.prepare('SELECT id, reset_expires FROM users WHERE reset_token = ?').get(token);
+    if (!user) {
+      return res.status(400).json({ error: 'El enlace es inválido.' });
+    }
+
+    if (new Date(user.reset_expires) < new Date()) {
+      return res.status(400).json({ error: 'El enlace ha expirado. Solicitá uno nuevo.' });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?').run(hash, user.id);
+
+    console.log(`[Auth] ✅ Contraseña restablecida vía token para ID ${user.id}`);
+    res.json({ success: true, message: 'Tu contraseña ha sido actualizada correctamente.' });
+  } catch (err) {
+    console.error('[Auth] Error en reset-password:', err.message);
+    res.status(500).json({ error: 'Error al restablecer contraseña.' });
+  }
+});
+
+// ============================================================
+// POST /api/auth/google — Login / Registro con Google
+// ============================================================
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: 'Credencial requerida' });
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const email = payload.email.toLowerCase();
+    const name = payload.name;
+    const googleId = payload.sub;
+
+    let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+    if (!user) {
+      // Registrar nuevo usuario
+      const existingTotal = await db.prepare('SELECT COUNT(*) as count FROM users').get();
+      const role = existingTotal.count === 0 ? 'admin' : 'user';
+      // Generar una contraseña aleatoria para que password_hash no sea null
+      const randomPass = require('crypto').randomBytes(16).toString('hex');
+      const hash = await bcrypt.hash(randomPass, 12);
+      // Username base = email prefix
+      let username = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+      const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+      if (existingUser) username = `${username}_${Date.now().toString().slice(-4)}`;
+
+      const result = await db.prepare(
+        'INSERT INTO users(username, password_hash, role, email, oauth_provider, oauth_id) VALUES(?, ?, ?, ?, ?, ?)'
+      ).run(username, hash, role, email, 'google', googleId);
+
+      user = { id: result.lastInsertRowid, username, role };
+      console.log(`[Auth] ✅ Usuario creado vía Google: "${username}"`);
+    } else {
+      // Actualizar oauth info si faltaba
+      if (!user.oauth_provider) {
+        await db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ? WHERE id = ?').run('google', googleId, user.id);
+      }
+      db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
+      console.log(`[Auth] ✅ Login vía Google: "${user.username}"`);
+    }
+
+    const token = signToken({ id: user.id, username: user.username, role: user.role });
+    res.json({ success: true, token, username: user.username, role: user.role });
+  } catch (err) {
+    console.error('[Auth] Error en login de Google:', err.message);
+    res.status(500).json({ error: 'Error de autenticación con Google.' });
   }
 });
 

@@ -2,14 +2,17 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-  return knex.schema.alterTable('users', table => {
-    table.string('email').unique();
-    table.string('oauth_provider'); // 'google', 'apple', etc.
-    table.string('oauth_id').unique(); // ID from the provider
-    table.string('reset_token');
-    table.timestamp('reset_expires');
-  });
+exports.up = async function(knex) {
+  const hasEmail = await knex.schema.hasColumn('users', 'email');
+  if (!hasEmail) {
+    await knex.schema.alterTable('users', table => {
+      table.string('email').unique();
+      table.string('oauth_provider'); // 'google', 'apple', etc.
+      table.string('oauth_id').unique(); // ID from the provider
+      table.string('reset_token');
+      table.timestamp('reset_expires');
+    });
+  }
 };
 
 /**

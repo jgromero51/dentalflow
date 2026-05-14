@@ -24,6 +24,8 @@
     "knex": "^3.2.10",
     "morgan": "^1.10.0",
     "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.13",
+    "google-auth-library": "^9.10.0",
     "openai": "^4.47.1",
     "pg": "^8.20.0",
     "sql.js": "^1.12.0",

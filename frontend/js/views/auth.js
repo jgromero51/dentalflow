@@ -350,6 +350,102 @@ const ForgotPasswordView = {
   }
 };
 
+// ============================================================
+// VISTA DE RESTABLECER CONTRASEÑA
+// ============================================================
+const ResetPasswordView = {
+  render(container, token) {
+    container.innerHTML = `
+      <div class="auth-wrapper fade-in" id="reset-view">
+        <div class="auth-brand">
+          <div class="auth-brand-icon">🦷</div>
+          <div class="auth-brand-name">DentalFlow</div>
+        </div>
+
+        <div class="auth-card">
+          <h2 class="auth-title">Nueva Contraseña</h2>
+          <p class="auth-desc">Ingresá tu nueva contraseña para tu cuenta.</p>
+
+          <form id="reset-form" onsubmit="ResetPasswordView.submit(event, '${token}')">
+            <div class="form-group">
+              <label class="form-label" for="reset-pass">Nueva Contraseña</label>
+              <div class="auth-pass-wrap">
+                <input id="reset-pass" class="form-control" type="password"
+                  placeholder="Mínimo 6 caracteres" required minlength="6" />
+                <button type="button" class="auth-eye-btn" onclick="ResetPasswordView.togglePass()" title="Mostrar/ocultar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:24px;">
+              <label class="form-label" for="reset-pass2">Confirmar Contraseña</label>
+              <input id="reset-pass2" class="form-control" type="password"
+                placeholder="Repetí la contraseña" required />
+            </div>
+
+            <div id="reset-msg" class="auth-error" style="display:none; color: var(--success); background: #e6f6ee; border-color: #c3e6cb;"></div>
+            <div id="reset-error" class="auth-error" style="display:none;"></div>
+
+            <button type="submit" id="reset-btn" class="btn btn-primary btn-full">
+              Guardar Contraseña
+            </button>
+          </form>
+          
+          <div class="auth-switch" style="margin-top:20px;">
+            <button type="button" class="auth-switch-link" onclick="Router.navigate('login')">
+              Ir al inicio de sesión
+            </button>
+          </div>
+        </div>
+      </div>`;
+  },
+
+  togglePass() {
+    ['reset-pass', 'reset-pass2'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.type = input.type === 'password' ? 'text' : 'password';
+    });
+  },
+
+  async submit(e, token) {
+    e.preventDefault();
+    const pass1 = document.getElementById('reset-pass').value;
+    const pass2 = document.getElementById('reset-pass2').value;
+    const btn   = document.getElementById('reset-btn');
+    const msg   = document.getElementById('reset-msg');
+    const err   = document.getElementById('reset-error');
+
+    msg.style.display = 'none';
+    err.style.display = 'none';
+
+    if (pass1 !== pass2) {
+      err.textContent = 'Las contraseñas no coinciden.';
+      err.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = `<div class="loading-spinner" style="width:18px;height:18px;border-width:2px;"></div> Guardando...`;
+
+    try {
+      const res = await api.auth.resetPassword({ token, newPassword: pass1 });
+      msg.textContent = res.message || 'Contraseña actualizada. Ahora podés iniciar sesión.';
+      msg.style.display = 'block';
+      btn.innerHTML = 'Actualizada';
+    } catch (error) {
+      err.textContent = error.message;
+      err.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = 'Guardar Contraseña';
+    }
+  }
+};
+
 window.LoginView = LoginView;
 window.SetupView = SetupView;
 window.ForgotPasswordView = ForgotPasswordView;
+window.ResetPasswordView = ResetPasswordView;

@@ -19,11 +19,48 @@ const Auth = {
   setUser(u)  { localStorage.setItem('df_user', JSON.stringify(u)); },
   isLoggedIn(){ return !!this.getToken(); },
   socialLogin(provider) {
-    if (window.Toast) {
-      Toast.info(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+    if (provider === 'google') {
+      if (typeof google === 'undefined' || !google.accounts) {
+        if (window.Toast) Toast.error('Google Sign-In no está cargado. Verificá tu conexión o recarga la página.');
+        return;
+      }
+      google.accounts.id.prompt();
     } else {
-      alert(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+      if (window.Toast) {
+        Toast.info(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+      } else {
+        alert(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+      }
     }
+  },
+  initGoogleAuth() {
+    // Load Google Identity Services script
+    if (document.getElementById('gsi-script')) return;
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.id = 'gsi-script';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // Intenta obtener el Client ID del backend, o usa una variable por defecto si se expone en la API
+      // Como no tenemos el endpoint config publico, usaremos un client ID por defecto o lo pediremos al usuario.
+      // Aquí se debe poner el Client ID real de Google Cloud Console.
+      google.accounts.id.initialize({
+        client_id: window.GOOGLE_CLIENT_ID || 'TU_CLIENT_ID_AQUI.apps.googleusercontent.com',
+        callback: async (response) => {
+          try {
+            const res = await remoteApi.request('POST', '/auth/google', { credential: response.credential });
+            Auth.setToken(res.token);
+            Auth.setUser({ username: res.username, role: res.role });
+            window.Router.navigate('appointments');
+            if (window.Toast) Toast.success(`¡Bienvenido/a, ${res.username}!`);
+          } catch (err) {
+            if (window.Toast) Toast.error(err.message || 'Error al iniciar sesión con Google.');
+          }
+        }
+      });
+    };
+    document.head.appendChild(script);
   }
 };
 window.Auth = Auth;
@@ -113,6 +150,7 @@ const remoteApi = {
     login:          (data) => remoteApi.request('POST', '/auth/login', data),
     setup:          (data) => remoteApi.request('POST', '/auth/setup', data),
     forgotPassword: (data) => remoteApi.request('POST', '/auth/forgot-password', data),
+    resetPassword:  (data) => remoteApi.request('POST', '/auth/reset-password', data),
     me:             ()     => remoteApi.request('GET',  '/auth/me'),
     changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
     logout() { Auth.clearToken(); },

@@ -46,6 +46,7 @@ const Router = {
     'login':        renderLogin,
     'setup':        renderSetup,
     'forgot-password': renderForgotPassword,
+    'reset-password': renderResetPassword,
 
   },
 
@@ -66,15 +67,24 @@ const Router = {
       b.classList.toggle('active', isRoute);
     });
 
-    // Parametrización de rutas (ej. patient/123)
+    // Parametrización de rutas (ej. patient/123 o reset-password/TOKEN)
     let routeKey = hash;
     let routeParams = null;
     if (hash.startsWith('patient/')) {
       routeKey = 'patient';
       routeParams = hash.split('/')[1];
+    } else if (hash.startsWith('reset-password/')) {
+      routeKey = 'reset-password';
+      routeParams = hash.split('/')[1];
     }
 
-    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password';
+    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password';
+    
+    // Initialize Google Auth script on auth views
+    if (isAuthView) {
+      Auth.initGoogleAuth();
+    }
+
     const fab = document.getElementById('fab-new-appointment');
     const nav = document.getElementById('header-nav');
 
@@ -131,6 +141,10 @@ async function renderSetup(container) {
 
 async function renderForgotPassword(container) {
   ForgotPasswordView.render(container);
+}
+
+async function renderResetPassword(container, token) {
+  ResetPasswordView.render(container, token);
 }
 
 
