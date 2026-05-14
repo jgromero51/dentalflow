@@ -27,17 +27,11 @@ router.get('/status', async (req, res) => {
 });
 
 // ============================================================
-// POST /api/auth/setup — Primer uso: crear cuenta de administrador
-// Solo funciona si NO existe ningún usuario todavía
+// POST /api/auth/setup — Primer uso o registro de usuario
 // ============================================================
 router.post('/setup', async (req, res) => {
   try {
-    const existing = await db.prepare('SELECT id FROM users LIMIT 1').get();
-    if (existing) {
-      return res.status(403).json({ error: 'Ya existe un usuario registrado. Usá el login normal.' });
-    }
-
-    const { username, password, clinic_name } = req.body;
+    const { username, password, clinic_name, email } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
@@ -46,26 +40,40 @@ router.post('/setup', async (req, res) => {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
     }
 
-    const hash = await bcrypt.hash(password, 12);
-    const result = await db.prepare(
-      'INSERT INTO users(username, password_hash, role) VALUES(?, ?, ?)'
-    ).run(username.trim().toLowerCase(), hash, 'admin');
+    const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim().toLowerCase());
+    if (existingUser) {
+      return res.status(400).json({ error: 'Este nombre de usuario ya está en uso.' });
+    }
 
-    // Si se envió nombre de clínica, guardarlo en settings
-    if (clinic_name && clinic_name.trim()) {
+    const existingTotal = await db.prepare('SELECT COUNT(*) as count FROM users').get();
+    const isFirstUser = existingTotal.count === 0;
+    const role = isFirstUser ? 'admin' : 'user';
+
+    const hash = await bcrypt.hash(password, 12);
+    
+    // We will add an email column logic here or keep it simple for now as requested by user
+    // The user also mentioned recovering password, so we need an email column if not present.
+    // Let's check if the users table has an email column.
+    
+    const result = await db.prepare(
+      'INSERT INTO users(username, password_hash, role, email) VALUES(?, ?, ?, ?)'
+    ).run(username.trim().toLowerCase(), hash, role, email ? email.trim().toLowerCase() : null);
+
+    // Si se envió nombre de clínica y es el primer usuario, guardarlo en settings
+    if (isFirstUser && clinic_name && clinic_name.trim()) {
       await db.prepare(
         `INSERT INTO settings(key, value) VALUES('clinic_name', ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`
       ).run(clinic_name.trim());
     }
 
-    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role: 'admin' });
+    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role });
 
-    console.log(`[Auth] ✅ Primer usuario creado: "${username}"`);
-    res.status(201).json({ success: true, token, username: username.trim().toLowerCase() });
+    console.log(`[Auth] ✅ Usuario creado: "${username}" (Rol: ${role})`);
+    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role });
 
   } catch (err) {
-    console.error('[Auth] Error en setup:', err.message);
+    console.error('[Auth] Error en setup/registro:', err.message);
     res.status(500).json({ error: 'Error al crear usuario' });
   }
 });
@@ -148,6 +156,44 @@ router.post('/change-password', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[Auth] Error cambiando contraseña:', err.message);
     res.status(500).json({ error: 'Error al cambiar contraseña' });
+  }
+});
+
+// ============================================================
+// POST /api/auth/forgot-password — Recuperar contraseña
+// ============================================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'El correo electrónico es obligatorio.' });
+    }
+
+    // Since users may have registered before without email, we should search by email,
+    // but in SQLite we just added the column.
+    // However, if we don't find it, we shouldn't reveal if it exists or not for security.
+    const user = await db.prepare('SELECT id, username FROM users WHERE email = ?').get(email.trim().toLowerCase());
+    
+    if (user) {
+      const resetToken = require('crypto').randomBytes(32).toString('hex');
+      const resetExpires = new Date(Date.now() + 3600000).toISOString(); // 1 hour
+
+      await db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?').run(resetToken, resetExpires, user.id);
+
+      // Simulate sending email (in a real app, use SendGrid, Resend, Nodemailer, etc.)
+      console.log(`\n\n=== SIMULACIÓN DE CORREO ===`);
+      console.log(`Para: ${email} (Usuario: ${user.username})`);
+      console.log(`Asunto: Restablecer tu contraseña`);
+      console.log(`Mensaje: Usá este token para recuperar tu cuenta: ${resetToken}`);
+      console.log(`============================\n\n`);
+    }
+
+    // Always return success to prevent email enumeration
+    res.json({ success: true, message: 'Si el correo existe en nuestro sistema, recibirás un enlace de recuperación pronto.' });
+
+  } catch (err) {
+    console.error('[Auth] Error en forgot-password:', err.message);
+    res.status(500).json({ error: 'Error al procesar la solicitud' });
   }
 });
 

@@ -18,6 +18,13 @@ const Auth = {
   getUser()   { try { return JSON.parse(localStorage.getItem('df_user') || 'null'); } catch { return null; } },
   setUser(u)  { localStorage.setItem('df_user', JSON.stringify(u)); },
   isLoggedIn(){ return !!this.getToken(); },
+  socialLogin(provider) {
+    if (window.Toast) {
+      Toast.info(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+    } else {
+      alert(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+    }
+  }
 };
 window.Auth = Auth;
 
@@ -105,6 +112,7 @@ const remoteApi = {
     status:         ()     => remoteApi.request('GET',  '/auth/status'),
     login:          (data) => remoteApi.request('POST', '/auth/login', data),
     setup:          (data) => remoteApi.request('POST', '/auth/setup', data),
+    forgotPassword: (data) => remoteApi.request('POST', '/auth/forgot-password', data),
     me:             ()     => remoteApi.request('GET',  '/auth/me'),
     changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
     logout() { Auth.clearToken(); },

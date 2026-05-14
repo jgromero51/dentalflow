@@ -45,6 +45,7 @@ const Router = {
     'settings':     renderSettings,
     'login':        renderLogin,
     'setup':        renderSetup,
+    'forgot-password': renderForgotPassword,
 
   },
 
@@ -73,7 +74,7 @@ const Router = {
       routeParams = hash.split('/')[1];
     }
 
-    const isAuthView = routeKey === 'login' || routeKey === 'setup';
+    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password';
     const fab = document.getElementById('fab-new-appointment');
     const nav = document.getElementById('header-nav');
 
@@ -125,7 +126,11 @@ async function renderLogin(container) {
 }
 
 async function renderSetup(container) {
-  SetupView.render(container);
+  await SetupView.render(container);
+}
+
+async function renderForgotPassword(container) {
+  ForgotPasswordView.render(container);
 }
 
 
