@@ -268,6 +268,7 @@ const NewAppointmentView = {
       if (!telefono) { Toast.error('El teléfono WhatsApp es requerido'); return; }
       payload.nombre   = nombre;
       payload.telefono = telefono;
+      payload.patient_id = 'new';
     }
 
     btn.disabled = true;
@@ -292,11 +293,13 @@ const NewAppointmentView = {
   },
 
   open() {
-    const modal = document.getElementById('modal');
     document.getElementById('modal-title').textContent = '📅 Nueva Cita';
     document.getElementById('modal-body').innerHTML = this.getFormHTML();
     window.openModal();
     this.init();
   },
-};
-window.NewAppointmentView = NewAppointmentView;
+
+  openForPatient(patient) {
+    this.open();
+    if (!patient) return;
+    // Pre-seleccionar el pacie

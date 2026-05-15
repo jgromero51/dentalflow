@@ -56,7 +56,7 @@ function formatHora(isoString) {
  * @returns {Promise<string>} Mensaje listo para enviar por WhatsApp
  */
 async function generateReminderMessage(appointment, tipo) {
-  const settings   = getSettings();
+  const settings   = await getSettings(appointment.user_id || null);
   const clinicName = settings.clinic_name || process.env.CLINIC_NAME || 'el consultorio odontológico';
   const nombre      = appointment.paciente_nombre;
   const fecha       = formatFecha(appointment.fecha_hora_inicio);

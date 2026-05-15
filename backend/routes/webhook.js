@@ -6,7 +6,7 @@
  */
 const express = require('express');
 const router  = express.Router();
-const { db }  = require('../db/database');
+const { db, getSettings } = require('../db/database');
 const { processPatientResponse } = require('../services/ai');
 const { sendMessage }            = require('../services/whatsapp');
 
@@ -83,10 +83,12 @@ router.post('/', async (req, res) => {
         await db.prepare("UPDATE appointments SET estado='confirmada', updated_at=datetime('now','localtime') WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ✅ Cita #${appt.id} CONFIRMADA por ${patient.nombre}`);
+        await notificarDoctor(appt, patient, 'confirmar');
       } else if (intencion === 'cancelar') {
         await db.prepare("UPDATE appointments SET estado='cancelada', updated_at=datetime('now','localtime') WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
+        await notificarDoctor(appt, patient, 'cancelar');
       }
 
       // Guardar log del mensaje entrante
@@ -108,5 +110,35 @@ router.post('/', async (req, res) => {
     console.error('[Webhook] Error procesando mensaje:', err.message);
   }
 });
+
+async function notificarDoctor(appt, patient, accion) {
+  try {
+    const userId = appt.user_id;
+    if (!userId) return;
+
+    const settings = await getSettings(userId);
+    const doctorPhone = settings.doctor_phone;
+    if (!doctorPhone) {
+      console.log('[Webhook] Sin doctor_phone configurado — omitiendo notificación al doctor');
+      return;
+    }
+
+    const d = new Date(appt.fecha_hora_inicio);
+    const fecha = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const hora  = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+
+    let mensaje;
+    if (accion === 'confirmar') {
+      mensaje = `✅ *Cita confirmada*\n\n👤 ${patient.nombre}\n📅 ${fecha} a las ${hora} hs\n\nEl paciente confirmó su asistencia.`;
+    } else {
+      mensaje = `❌ *Cita cancelada*\n\n👤 ${patient.nombre}\n📅 ${fecha} a las ${hora} hs\n\nEl paciente indicó que NO va a asistir.`;
+    }
+
+    await sendMessage(doctorPhone, mensaje);
+    console.log(`[Webhook] Notificación al doctor enviada (${accion}) → ${doctorPhone}`);
+  } catch (err) {
+    console.error('[Webhook] Error al notificar al doctor:', err.message);
+  }
+}
 
 module.exports = router;

@@ -82,7 +82,7 @@ const PatientDetailView = {
 
     let html = `
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-        <button class="btn btn-primary btn-sm" onclick="Router.navigate('new')">📅 Agendar Cita</button>
+        <button class="btn btn-primary btn-sm" onclick="NewAppointmentView.openForPatient(PatientDetailView.patient)">📅 Agendar Cita</button>
       </div>
     `;
 

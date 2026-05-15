@@ -110,6 +110,13 @@ const SettingsView = {
           Recordatorios Automáticos
         </div>
         <div class="settings-card">
+          <div class="form-group">
+            <label class="form-label" for="s-doctor-phone">Tu número de WhatsApp (para notificaciones)</label>
+            <input id="s-doctor-phone" class="form-control" type="tel"
+              placeholder="+5491198765432"
+              value="${this._esc(s.doctor_phone)}" />
+            <div class="form-hint">Cuando un paciente confirme o cancele su cita, recibirás un mensaje en este número.</div>
+          </div>
           <div class="settings-toggle-row" id="toggle-24h" onclick="SettingsView._toggle('reminder_24h_active','toggle-24h')">
             <div class="settings-toggle-info">
               <div class="settings-toggle-title">Recordatorio 24 horas antes</div>
@@ -234,6 +241,7 @@ const SettingsView = {
       clinic_welcome_msg:  document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
       reminder_24h_active: this._settings.reminder_24h_active ?? 'true',
       reminder_4h_active:  this._settings.reminder_4h_active  ?? 'true',
+      doctor_phone:        get('s-doctor-phone'),
     };
 
     if (!payload.clinic_name) {
@@ -280,19 +288,3 @@ const SettingsView = {
       err.style.display = 'block';
       return;
     }
-
-    try {
-      await api.auth.changePassword({ current_password: curr, new_password: newP });
-      Toast.success('🔑 Contraseña actualizada correctamente.');
-      this._togglePassForm();
-      document.getElementById('s-curr-pass').value  = '';
-      document.getElementById('s-new-pass').value   = '';
-      document.getElementById('s-new-pass2').value  = '';
-    } catch (e) {
-      err.textContent   = e.message;
-      err.style.display = 'block';
-    }
-  }
-};
-
-window.SettingsView = SettingsView;

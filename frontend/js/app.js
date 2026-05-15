@@ -287,6 +287,24 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================================
+// CLINIC NAME — carga y actualiza el header con el nombre de la clínica
+// ============================================================
+async function loadClinicName() {
+  try {
+    const res = await api.settings.get();
+    const name = res?.data?.clinic_name;
+    if (name) {
+      const brand = document.querySelector('.brand-name');
+      if (brand) brand.textContent = name;
+      // Actualizar también el header del dropdown
+      const dropLabel = document.getElementById('dropdown-clinic-name');
+      if (dropLabel) dropLabel.textContent = name;
+    }
+  } catch (e) { /* silencioso */ }
+}
+window.loadClinicName = loadClinicName;
+
+// ============================================================
 // ARRANQUE
 // ============================================================
 async function init() {
@@ -327,7 +345,8 @@ async function init() {
   // 4. Desbloquear el router y renderizar la ruta
   _resolveInit();
 
-
+  // Cargar nombre de clínica en el header si está logueado
+  if (Auth.isLoggedIn()) loadClinicName();
 
   await Router.handleRoute();
 }

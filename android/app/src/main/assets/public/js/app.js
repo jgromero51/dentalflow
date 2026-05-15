@@ -45,6 +45,9 @@ const Router = {
     'settings':     renderSettings,
     'login':        renderLogin,
     'setup':        renderSetup,
+    'forgot-password': renderForgotPassword,
+    'reset-password': renderResetPassword,
+
   },
 
   navigate(route) {
@@ -64,15 +67,24 @@ const Router = {
       b.classList.toggle('active', isRoute);
     });
 
-    // Parametrización de rutas (ej. patient/123)
+    // Parametrización de rutas (ej. patient/123 o reset-password/TOKEN)
     let routeKey = hash;
     let routeParams = null;
     if (hash.startsWith('patient/')) {
       routeKey = 'patient';
       routeParams = hash.split('/')[1];
+    } else if (hash.startsWith('reset-password/')) {
+      routeKey = 'reset-password';
+      routeParams = hash.split('/')[1];
     }
 
-    const isAuthView = routeKey === 'login' || routeKey === 'setup';
+    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password';
+    
+    // Initialize Google Auth script on auth views
+    if (isAuthView) {
+      Auth.initGoogleAuth();
+    }
+
     const fab = document.getElementById('fab-new-appointment');
     const nav = document.getElementById('header-nav');
 
@@ -124,8 +136,18 @@ async function renderLogin(container) {
 }
 
 async function renderSetup(container) {
-  SetupView.render(container);
+  await SetupView.render(container);
 }
+
+async function renderForgotPassword(container) {
+  ForgotPasswordView.render(container);
+}
+
+async function renderResetPassword(container, token) {
+  ResetPasswordView.render(container, token);
+}
+
+
 
 async function renderPatients(container) {
   await PatientsView.render(container); // Cambiaremos la lógica antigua por una vista limpia
@@ -265,6 +287,24 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================================
+// CLINIC NAME — carga y actualiza el header con el nombre de la clínica
+// ============================================================
+async function loadClinicName() {
+  try {
+    const res = await api.settings.get();
+    const name = res?.data?.clinic_name;
+    if (name) {
+      const brand = document.querySelector('.brand-name');
+      if (brand) brand.textContent = name;
+      // Actualizar también el header del dropdown
+      const dropLabel = document.getElementById('dropdown-clinic-name');
+      if (dropLabel) dropLabel.textContent = name;
+    }
+  } catch (e) { /* silencioso */ }
+}
+window.loadClinicName = loadClinicName;
+
+// ============================================================
 // ARRANQUE
 // ============================================================
 async function init() {
@@ -286,35 +326,13 @@ async function init() {
   // 2. Determinar a qué ruta debemos ir
   // Si ya hay un token → confiar en él y entrar directamente
   // Si no hay token → mostrar login siempre (setup solo desde el link de login)
+  // 2. Determinar la ruta inicial
   let targetRoute;
   if (Auth.isLoggedIn()) {
     const currentHash = window.location.hash.replace('#', '');
     targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
       ? currentHash
-      : 'dashboard';
+      : 'appointments'; // Por defecto citas si está logueado
   } else {
-    targetRoute = 'login';
-  }
-
-  // 3. Establecer el hash correcto ANTES de desbloquear el router
-  //    Así handleRoute() siempre lee el hash definitivo.
-  window.location.hash = targetRoute;
-
-  // 4. Desbloquear el router y renderizar la ruta
-  _resolveInit();
-  await Router.handleRoute();
-}
-
-// Función global para cerrar sesión (compatible con el botón en settings.js)
-window.logout = function () {
-  if (!confirm('¿Cerrar sesión?')) return;
-  Auth.clearToken();
-  window.Router.navigate('login');
-};
-
-// Iniciar cuando el DOM esté listo
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+    // Siempre ir a Login por defecto si no está logueado, a menos que pida setup explícitamente
+    targetRou

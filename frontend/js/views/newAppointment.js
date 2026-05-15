@@ -293,11 +293,22 @@ const NewAppointmentView = {
   },
 
   open() {
-    const modal = document.getElementById('modal');
     document.getElementById('modal-title').textContent = '📅 Nueva Cita';
     document.getElementById('modal-body').innerHTML = this.getFormHTML();
     window.openModal();
     this.init();
+  },
+
+  openForPatient(patient) {
+    this.open();
+    if (!patient) return;
+    // Pre-seleccionar el paciente — ocultar el buscador y mostrar datos fijos
+    this.selectPatient(patient);
+    const search = document.getElementById('patient-search');
+    if (search) {
+      search.value = patient.nombre;
+      search.disabled = true;
+    }
   },
 };
 window.NewAppointmentView = NewAppointmentView;

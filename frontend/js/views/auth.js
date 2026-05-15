@@ -106,6 +106,9 @@ const LoginView = {
       Auth.setToken(res.token);
       Auth.setUser({ username: res.username, role: res.role });
 
+      // Actualizar nombre de clínica en el header
+      if (window.loadClinicName) await window.loadClinicName();
+
       // Navegar al inicio
       window.Router.navigate('appointments');
     } catch (err) {
