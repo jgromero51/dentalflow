@@ -167,6 +167,9 @@ const PatientDetailView = {
     const deuda = totalCosto - totalPagado;
 
     let html = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <button class="btn btn-primary btn-sm" onclick="PatientDetailView.openProforma()">📄 Generar Proforma</button>
+      </div>
       <div style="display:flex; gap:16px; margin-bottom:24px;">
         <div class="card" style="flex:1; text-align:center;">
           <div style="font-size:12px; color:var(--text-secondary);">Total Facturado</div>
@@ -246,6 +249,166 @@ const PatientDetailView = {
     } catch (err) {
       container.innerHTML = `<span style="color:#da3633;">⚠️ Error al generar resumen: ${err.message}</span>`;
     }
+  },
+
+  openProforma() {
+    const p = this.patient;
+    document.getElementById('modal-title').textContent = '📄 Generar Proforma';
+    document.getElementById('modal-body').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="font-size:14px;color:var(--text-secondary);">
+          Paciente: <strong>${p.nombre}</strong>
+        </div>
+
+        <div id="proforma-items">
+          <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;">
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">TRATAMIENTO</span>
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">PRECIO</span>
+            <span></span>
+          </div>
+        </div>
+
+        <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.addProformaItem()" style="align-self:flex-start;">
+          + Agregar ítem
+        </button>
+
+        <div>
+          <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">Notas / condiciones (opcional)</label>
+          <textarea id="proforma-notas" rows="2" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px;color:var(--text-primary);font-size:13px;resize:vertical;" placeholder="Ej: Incluye anestesia, no incluye rayos X..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+          <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="PatientDetailView.printProforma()">🖨️ Imprimir / Guardar PDF</button>
+        </div>
+      </div>
+    `;
+    // Agregar el primer ítem vacío automáticamente
+    this.addProformaItem();
+    openModal();
+  },
+
+  addProformaItem() {
+    const container = document.getElementById('proforma-items');
+    if (!container) return;
+    const idx = container.querySelectorAll('.proforma-row').length;
+    const row = document.createElement('div');
+    row.className = 'proforma-row';
+    row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;';
+    row.innerHTML = `
+      <input type="text" placeholder="Ej: Extracción molar" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:100%;box-sizing:border-box;" />
+      <input type="number" placeholder="$0" min="0" step="0.01" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:90px;box-sizing:border-box;" />
+      <button onclick="this.closest('.proforma-row').remove()" style="background:none;border:none;color:#da3633;font-size:18px;cursor:pointer;padding:0 4px;">✕</button>
+    `;
+    container.appendChild(row);
+  },
+
+  printProforma() {
+    const p = this.patient;
+    const rows = document.querySelectorAll('#proforma-items .proforma-row');
+    const notas = document.getElementById('proforma-notas')?.value || '';
+
+    const items = [];
+    let total = 0;
+    rows.forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const desc = inputs[0]?.value.trim();
+      const precio = parseFloat(inputs[1]?.value) || 0;
+      if (desc) {
+        items.push({ desc, precio });
+        total += precio;
+      }
+    });
+
+    if (items.length === 0) {
+      Toast.warning('Agregá al menos un tratamiento');
+      return;
+    }
+
+    const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const itemsHTML = items.map((it, i) => `
+      <tr style="border-bottom:1px solid #e5e7eb;">
+        <td style="padding:10px 12px;text-align:center;color:#6b7280;">${i + 1}</td>
+        <td style="padding:10px 12px;">${it.desc}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:500;">$${it.precio.toFixed(2)}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Proforma — ${p.nombre}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111; padding: 40px; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; }
+    .brand { font-size: 24px; font-weight: 700; color: #0d1117; }
+    .brand span { color: #00b4d8; }
+    .meta { text-align: right; font-size: 13px; color: #6b7280; }
+    .meta strong { display: block; font-size: 16px; color: #111; margin-bottom: 4px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 16px; border-bottom: 2px solid #0d1117; padding-bottom: 6px; }
+    .patient-box { background: #f9fafb; border-radius: 8px; padding: 14px 18px; margin-bottom: 28px; font-size: 14px; }
+    .patient-box strong { font-size: 16px; display: block; margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; }
+    thead { background: #0d1117; color: #fff; }
+    thead th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 13px; }
+    thead th:first-child { border-radius: 6px 0 0 6px; text-align:center; width:48px; }
+    thead th:last-child { border-radius: 0 6px 6px 0; text-align:right; }
+    .total-row { font-weight: 700; font-size: 16px; }
+    .total-row td { padding: 14px 12px; border-top: 2px solid #0d1117; }
+    .notas { background: #f9fafb; border-left: 3px solid #00b4d8; padding: 12px 16px; font-size: 13px; color: #374151; border-radius: 0 6px 6px 0; margin-top: 8px; }
+    .footer { margin-top: 48px; font-size: 12px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">🦷 <span>Dental</span>Flow</div>
+    <div class="meta">
+      <strong>PROFORMA</strong>
+      Fecha: ${fecha}
+    </div>
+  </div>
+
+  <h2>Datos del Paciente</h2>
+  <div class="patient-box">
+    <strong>${p.nombre}</strong>
+    Tel: ${p.telefono || '—'}
+  </div>
+
+  <h2>Tratamientos Propuestos</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Descripción del Tratamiento</th>
+        <th style="text-align:right;">Precio</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${itemsHTML}
+      <tr class="total-row">
+        <td colspan="2" style="padding:14px 12px;">TOTAL</td>
+        <td style="padding:14px 12px;text-align:right;">$${total.toFixed(2)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  ${notas ? `<div class="notas"><strong>Notas:</strong> ${notas}</div>` : ''}
+
+  <div class="footer">
+    Este documento es una proforma informativa y no constituye un comprobante fiscal.<br>
+    Generado con DentalFlow · ${fecha}
+  </div>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 600);
+    closeModal();
   },
 
   async toggleDictation() {
