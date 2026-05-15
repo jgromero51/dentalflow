@@ -112,9 +112,14 @@ const SettingsView = {
         <div class="settings-card">
           <div class="form-group">
             <label class="form-label" for="s-doctor-phone">Tu número de WhatsApp (para notificaciones)</label>
-            <input id="s-doctor-phone" class="form-control" type="tel"
-              placeholder="+5491198765432"
-              value="${this._esc(s.doctor_phone)}" />
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="s-doctor-phone" class="form-control" type="tel"
+                placeholder="+5491198765432"
+                value="${this._esc(s.doctor_phone)}" style="flex:1;" />
+              <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0;" onclick="SettingsView._testWhatsApp()">
+                📱 Probar
+              </button>
+            </div>
             <div class="form-hint">Cuando un paciente confirme o cancele su cita, recibirás un mensaje en este número.</div>
           </div>
           <div class="settings-toggle-row" id="toggle-24h" onclick="SettingsView._toggle('reminder_24h_active','toggle-24h')">
@@ -275,16 +280,7 @@ const SettingsView = {
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
   },
 
-  async _changePass() {
-    const curr  = document.getElementById('s-curr-pass')?.value || '';
-    const newP  = document.getElementById('s-new-pass')?.value  || '';
-    const newP2 = document.getElementById('s-new-pass2')?.value || '';
-    const err   = document.getElementById('pass-error');
-
-    err.style.display = 'none';
-
-    if (newP !== newP2) {
-      err.textContent = 'Las contraseñas nuevas no coinciden.';
-      err.style.display = 'block';
-      return;
-    }
+  async _testWhatsApp() {
+    const telefono = document.getElementById('s-doctor-phone')?.value?.trim();
+    if (!telefono) {
+      Toast.error('Ingresá tu número de Whats

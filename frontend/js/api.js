@@ -131,8 +131,9 @@ const remoteApi = {
   },
 
   settings: {
-    get:  ()     => remoteApi.request('GET',  '/settings'),
-    save: (data) => remoteApi.request('POST', '/settings', data),
+    get:  ()          => remoteApi.request('GET',  '/settings'),
+    save: (data)      => remoteApi.request('POST', '/settings', data),
+    testWhatsApp: (t) => remoteApi.request('POST', '/settings/test-whatsapp', { telefono: t }),
   },
 
   messages: {

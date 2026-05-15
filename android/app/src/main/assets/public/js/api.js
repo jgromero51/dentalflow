@@ -5,7 +5,10 @@
  *   - APK / OFFLINE (window.localDB disponible): usa IndexedDB directamente
  */
 
-const API_BASE = '/api';
+const REMOTE_URL = 'https://dentalflow-mqgh.onrender.com';
+const API_BASE   = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:')) 
+  ? `${REMOTE_URL}/api` 
+  : '/api';
 
 // ---- Gestión de sesión ----
 const Auth = {
@@ -15,6 +18,50 @@ const Auth = {
   getUser()   { try { return JSON.parse(localStorage.getItem('df_user') || 'null'); } catch { return null; } },
   setUser(u)  { localStorage.setItem('df_user', JSON.stringify(u)); },
   isLoggedIn(){ return !!this.getToken(); },
+  socialLogin(provider) {
+    if (provider === 'google') {
+      if (typeof google === 'undefined' || !google.accounts) {
+        if (window.Toast) Toast.error('Google Sign-In no está cargado. Verificá tu conexión o recarga la página.');
+        return;
+      }
+      google.accounts.id.prompt();
+    } else {
+      if (window.Toast) {
+        Toast.info(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+      } else {
+        alert(`Para iniciar sesión con ${provider}, necesitás configurar las claves OAuth (Client ID). Contactá al administrador.`);
+      }
+    }
+  },
+  initGoogleAuth() {
+    // Load Google Identity Services script
+    if (document.getElementById('gsi-script')) return;
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.id = 'gsi-script';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // Intenta obtener el Client ID del backend, o usa una variable por defecto si se expone en la API
+      // Como no tenemos el endpoint config publico, usaremos un client ID por defecto o lo pediremos al usuario.
+      // Aquí se debe poner el Client ID real de Google Cloud Console.
+      google.accounts.id.initialize({
+        client_id: window.GOOGLE_CLIENT_ID || 'TU_CLIENT_ID_AQUI.apps.googleusercontent.com',
+        callback: async (response) => {
+          try {
+            const res = await remoteApi.request('POST', '/auth/google', { credential: response.credential });
+            Auth.setToken(res.token);
+            Auth.setUser({ username: res.username, role: res.role });
+            window.Router.navigate('appointments');
+            if (window.Toast) Toast.success(`¡Bienvenido/a, ${res.username}!`);
+          } catch (err) {
+            if (window.Toast) Toast.error(err.message || 'Error al iniciar sesión con Google.');
+          }
+        }
+      });
+    };
+    document.head.appendChild(script);
+  }
 };
 window.Auth = Auth;
 
@@ -79,11 +126,14 @@ const remoteApi = {
     create: (data)   => remoteApi.request('POST', '/patients', data),
     update: (id, d)  => remoteApi.request('PUT', `/patients/${id}`, d),
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
+    getSummary: (id) => remoteApi.request('GET', `/patients/${id}/ai-summary`),
+    voiceDictation: (audioBase64, ext) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64, ext }),
   },
 
   settings: {
-    get:  ()     => remoteApi.request('GET',  '/settings'),
-    save: (data) => remoteApi.request('POST', '/settings', data),
+    get:  ()          => remoteApi.request('GET',  '/settings'),
+    save: (data)      => remoteApi.request('POST', '/settings', data),
+    testWhatsApp: (t) => remoteApi.request('POST', '/settings/test-whatsapp', { telefono: t }),
   },
 
   messages: {
@@ -100,9 +150,16 @@ const remoteApi = {
     status:         ()     => remoteApi.request('GET',  '/auth/status'),
     login:          (data) => remoteApi.request('POST', '/auth/login', data),
     setup:          (data) => remoteApi.request('POST', '/auth/setup', data),
+    forgotPassword: (data) => remoteApi.request('POST', '/auth/forgot-password', data),
+    resetPassword:  (data) => remoteApi.request('POST', '/auth/reset-password', data),
     me:             ()     => remoteApi.request('GET',  '/auth/me'),
     changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
     logout() { Auth.clearToken(); },
+  },
+
+  admin: {
+    users: () => remoteApi.request('GET', '/admin/users'),
+    stats: () => remoteApi.request('GET', '/admin/system-stats'),
   },
 
   health: () => remoteApi.request('GET', '/health'),
@@ -130,6 +187,8 @@ const localApi = {
     create: (data)   => wrapLocal((d)  => window.localDB.patients.create(d).then(data => ({ data, message: 'Paciente creado' })))(data),
     update: (id, d)  => wrapLocal((id, d) => window.localDB.patients.update(id, d).then(data => ({ data, message: 'Actualizado' })))(id, d),
     delete: (id)     => wrapLocal(window.localDB.patients.delete)(id),
+    getSummary: (id) => Promise.resolve({ data: "El resumen con IA requiere conexión al servidor principal." }),
+    voiceDictation: () => Promise.resolve({ data: "El dictado por voz requiere conexión al servidor principal." }),
   },
 
   settings: {
@@ -152,22 +211,43 @@ const localApi = {
   // ---- Auth local (sin servidor) ----
   auth: {
     // Devuelve si ya existe al menos un usuario creado localmente
-    status() {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      return Promise.resolve({ hasUsers: users.length > 0 });
+    async status() {
+      // Migración rápida de localStorage a IndexedDB si es necesario
+      const legacy = JSON.parse(localStorage.getItem('df_local_users') || '[]');
+      if (legacy.length > 0 && window.localDB) {
+        for (const u of legacy) {
+          await window.localDB.auth.save(u);
+        }
+        localStorage.removeItem('df_local_users'); // Limpiar tras migrar
+      }
+
+      if (!window.localDB) return { hasUsers: legacy.length > 0 };
+      const users = await window.localDB.auth.list();
+      return { hasUsers: users.length > 0 };
     },
 
     // Crear primer usuario (setup)
     async setup({ username, password, clinic_name }) {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      if (users.find(u => u.username === username)) {
+      if (!window.localDB) throw new Error('Base de datos local no disponible');
+      
+      const existing = await window.localDB.auth.get(username);
+      if (existing) {
         throw Object.assign(new Error('Ese nombre de usuario ya existe.'), { status: 409 });
       }
-      const newUser = { username: username.trim(), password, clinic_name: clinic_name || 'Mi Clínica', role: 'admin' };
-      users.push(newUser);
-      localStorage.setItem('df_local_users', JSON.stringify(users));
-      // Guardar clinic_name
+
+      const newUser = { 
+        username: username.trim(), 
+        password, 
+        clinic_name: clinic_name || 'Mi Clínica', 
+        role: 'admin',
+        created_at: new Date().toISOString()
+      };
+      
+      await window.localDB.auth.save(newUser);
+      
+      // Guardar clinic_name en localStorage para acceso rápido UI
       localStorage.setItem('df_clinic_name', clinic_name || 'Mi Clínica');
+      
       // Generar token simple
       const token = btoa(`${username}:${Date.now()}`);
       Auth.setToken(token);
@@ -177,11 +257,13 @@ const localApi = {
 
     // Iniciar sesión
     async login({ username, password }) {
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      const user = users.find(u => u.username === username && u.password === password);
-      if (!user) {
+      if (!window.localDB) throw new Error('Base de datos local no disponible');
+      
+      const user = await window.localDB.auth.get(username);
+      if (!user || user.password !== password) {
         throw Object.assign(new Error('Usuario o contraseña incorrectos.'), { status: 401 });
       }
+
       const token = btoa(`${username}:${Date.now()}`);
       Auth.setToken(token);
       Auth.setUser({ username, role: user.role });
@@ -199,50 +281,57 @@ const localApi = {
     async changePassword({ current_password, new_password }) {
       const user = Auth.getUser();
       if (!user) throw Object.assign(new Error('No autenticado'), { status: 401 });
-      const users = JSON.parse(localStorage.getItem('df_local_users') || '[]');
-      const idx = users.findIndex(u => u.username === user.username && u.password === current_password);
-      if (idx === -1) throw Object.assign(new Error('Contraseña actual incorrecta.'), { status: 400 });
-      users[idx].password = new_password;
-      localStorage.setItem('df_local_users', JSON.stringify(users));
+      
+      const dbUser = await window.localDB.auth.get(user.username);
+      if (!dbUser || dbUser.password !== current_password) {
+        throw Object.assign(new Error('Contraseña actual incorrecta.'), { status: 400 });
+      }
+      
+      dbUser.password = new_password;
+      await window.localDB.auth.save(dbUser);
       return { message: 'Contraseña actualizada.' };
     },
 
     logout() { Auth.clearToken(); },
   },
+
+  admin: {
+    users: () => Promise.resolve({ data: [] }),
+    stats: () => Promise.resolve({ data: { total_users: 1, total_patients: 0, total_appointments: 0, total_messages: 0 } }),
+  },
 };
 
 // ---- Selección automática de modo ----
-const api = IS_NATIVE ? localApi : remoteApi;
+// Por defecto intentamos usar el modo remoto (servidor)
+let api = remoteApi;
 
-// Si no es nativo pero no hay servidor, intenta detectarlo y cambiar a local
-if (!IS_NATIVE) {
-  const _origAppointmentsToday = api.appointments.today;
-  let _serverOk = null;
-
-  const _checkServer = async () => {
-    if (_serverOk !== null) return _serverOk;
-    try {
-      const r = await fetch('/api/health', { signal: AbortSignal.timeout(2000) });
-      _serverOk = r.ok;
-    } catch {
-      _serverOk = false;
-    }
-    if (!_serverOk && window.localDB) {
-      console.warn('[API] Servidor no disponible → modo offline (IndexedDB)');
-      // Redirige todas las llamadas al modo local
-      Object.assign(api.appointments, localApi.appointments);
-      Object.assign(api.patients,     localApi.patients);
-      api.health = localApi.health;
-    }
-    return _serverOk;
-  };
-
-  // Verificar al cargar
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _checkServer);
-  } else {
-    _checkServer();
+// Si es nativo o web, verificamos si el servidor responde
+const _checkServer = async () => {
+  let serverOk = false;
+  try {
+    const r = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    serverOk = r.ok;
+  } catch (err) {
+    serverOk = false;
   }
-}
 
-window.api = api;
+  if (!serverOk && window.localDB) {
+    console.warn('[API] Servidor no disponible o modo offline → usando LocalDB');
+    // Redirigir métodos de la instancia actual de 'api' a localApi
+    Object.assign(api.appointments, localApi.appointments);
+    Object.assign(api.patients,     localApi.patients);
+    Object.assign(api.auth,         localApi.auth);
+    Object.assign(api.odontogram,   localApi.odontogram);
+    api.messages = localApi.messages;
+    api.settings = localApi.settings;
+    api.health   = localApi.health;
+    api.admin    = localApi.admin;
+  } else {
+    console.log('[API] Conectado al servidor profesional:', API_BASE);
+  }
+};
+
+// Ejecutar verificación al cargar
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.ad

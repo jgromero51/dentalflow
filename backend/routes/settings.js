@@ -6,6 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
+const { sendMessage } = require('../services/whatsapp');
 
 // GET /api/settings
 router.get('/', async (req, res) => {
@@ -46,6 +47,21 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('[Settings] Error al guardar:', err.message);
     res.status(500).json({ error: 'Error al guardar configuracion' });
+  }
+});
+
+// POST /api/settings/test-whatsapp
+router.post('/test-whatsapp', async (req, res) => {
+  const { telefono } = req.body;
+  if (!telefono) return res.status(400).json({ error: 'Falta el número de teléfono' });
+
+  const mensaje = `✅ *Prueba de WhatsApp — DentalFlow*\n\nSi ves este mensaje, la integración con WhatsApp está funcionando correctamente. 🦷`;
+
+  const result = await sendMessage(telefono, mensaje);
+  if (result.success) {
+    res.json({ success: true, demo: result.demo || false });
+  } else {
+    res.status(500).json({ success: false, error: result.error });
   }
 });
 
