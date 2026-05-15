@@ -129,17 +129,40 @@ a { color: var(--primary); text-decoration: none; }
 .loading-screen p { color: var(--text-secondary); font-size: 14px; }
 
 /* ============================================================
-   FAB (Floating Action Button)
+   FAB Speed Dial
 ============================================================ */
-.fab {
+.fab-dial {
   position: fixed; bottom: 24px; right: 20px; z-index: 90;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+}
+.fab {
   width: 58px; height: 58px; border-radius: 50%;
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   box-shadow: 0 4px 20px rgba(0,180,216,0.45);
   display: flex; align-items: center; justify-content: center;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
 }
 .fab svg { width: 26px; height: 26px; stroke: #fff; }
+.fab-dial-menu {
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.fab-dial-menu.open {
+  opacity: 1; pointer-events: all; transform: translateY(0);
+}
+.fab-dial-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  border-radius: 28px; padding: 10px 14px 10px 16px;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s;
+}
+.fab-dial-item:hover { background: var(--bg-hover); }
+.fab-dial-label { color: var(--text-primary); font-size: 14px; font-weight: 500; }
+.fab-dial-icon { font-size: 18px; }
 .fab:hover { transform: scale(1.08); box-shadow: 0 6px 28px rgba(0,180,216,0.6); }
 .fab:active { transform: scale(0.95); }
 .fab.rotated svg { transform: rotate(45deg); }

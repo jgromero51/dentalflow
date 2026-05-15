@@ -145,7 +145,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/appointments
 router.post('/', async (req, res) => {
   try {
-    let { patient_id, nombre, telefono, fecha_hora_inicio, duracion_minutos, descripcion, costo_estimado, monto_pagado } = req.body;
+    let { patient_id, nombre, telefono, fecha_hora_inicio, duracion_minutos, descripcion, costo_estimado, monto_pagado, estado } = req.body;
     const uid = req.user.id;
     let p_id = null;
 
@@ -169,7 +169,7 @@ router.post('/', async (req, res) => {
       p_id = patient_id;
     }
 
-    const conflicto = await verificarConflicto(fecha_hora_inicio, parseInt(duracion_minutos), null, uid);
+    const conflicto = (estado === 'completada') ? null : await verificarConflicto(fecha_hora_inicio, parseInt(duracion_minutos), null, uid);
     if (conflicto) {
       const fin = calcularFin(conflicto.fecha_hora_inicio, conflicto.duracion_minutos);
       return res.status(409).json({
@@ -181,8 +181,8 @@ router.post('/', async (req, res) => {
 
     const result = await db.prepare(`
       INSERT INTO appointments (patient_id, user_id, fecha_hora_inicio, duracion_minutos, descripcion, estado, costo_estimado, monto_pagado)
-      VALUES (?, ?, ?, ?, ?, 'pendiente', ?, ?)
-    `).run(p_id, uid, fecha_hora_inicio, parseInt(duracion_minutos), descripcion || null, parseFloat(costo_estimado) || 0, parseFloat(monto_pagado) || 0);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(p_id, uid, fecha_hora_inicio, parseInt(duracion_minutos), descripcion || null, estado || 'pendiente', parseFloat(costo_estimado) || 0, parseFloat(monto_pagado) || 0);
 
     const newAppt = await db.prepare(`
       SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono

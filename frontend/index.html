@@ -179,11 +179,29 @@
   <!-- ============================================================
        BOTÓN FLOTANTE (FAB) — Nueva Cita
   ============================================================ -->
-  <button class="fab" id="fab-new-appointment" title="Nueva Cita" aria-label="Crear nueva cita">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-    </svg>
-  </button>
+  <!-- FAB Speed Dial -->
+  <div class="fab-dial" id="fab-dial">
+    <!-- Opciones del menú -->
+    <div class="fab-dial-menu" id="fab-dial-menu">
+      <button class="fab-dial-item" id="fab-new-patient" onclick="FabDial.openNewPatient()">
+        <span class="fab-dial-label">Nuevo Paciente / Atención</span>
+        <span class="fab-dial-icon">👤</span>
+      </button>
+      <button class="fab-dial-item" id="fab-new-appointment" onclick="FabDial.openNewAppointment()">
+        <span class="fab-dial-label">Nueva Cita</span>
+        <span class="fab-dial-icon">📅</span>
+      </button>
+    </div>
+    <!-- Botón principal -->
+    <button class="fab" id="fab-main" title="Acciones" aria-label="Abrir menú" onclick="FabDial.toggle()">
+      <svg id="fab-icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <svg id="fab-icon-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:none;">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
 
   <!-- ============================================================
        MODAL OVERLAY (para formularios)
@@ -236,6 +254,7 @@
   <script src="/js/views/auth.js"></script>
   <script src="/js/views/settings.js"></script>
 
+  <script src="/js/views/newPatientWizard.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

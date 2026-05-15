@@ -85,10 +85,11 @@ const Router = {
       Auth.initGoogleAuth();
     }
 
-    const fab = document.getElementById('fab-new-appointment');
+    const fab = document.getElementById('fab-dial');
     const nav = document.getElementById('header-nav');
 
-    if (fab) fab.style.display = (isAuthView || routeKey === 'patients' || routeKey === 'patient' || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
+    if (fab) fab.style.display = (isAuthView || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
+    if (fab && FabDial) FabDial.close();
     if (nav) nav.style.display = isAuthView ? 'none' : 'flex';
 
     // Cerrar dropdown de ajustes si estaba abierto
@@ -159,10 +160,39 @@ async function renderPatientDetail(container, patientId) {
 // El código antiguo de showPatientDetail se elimina ya que usaremos PatientDetailView
 
 // ============================================================
-// FAB — Nueva Cita
+// FAB Speed Dial
 // ============================================================
-document.getElementById('fab-new-appointment')?.addEventListener('click', () => {
-  NewAppointmentView.open();
+const FabDial = {
+  _open: false,
+  toggle() {
+    this._open ? this.close() : this.open();
+  },
+  open() {
+    document.getElementById('fab-dial-menu')?.classList.add('open');
+    document.getElementById('fab-icon-plus').style.display = 'none';
+    document.getElementById('fab-icon-x').style.display = '';
+    this._open = true;
+  },
+  close() {
+    document.getElementById('fab-dial-menu')?.classList.remove('open');
+    document.getElementById('fab-icon-plus').style.display = '';
+    document.getElementById('fab-icon-x').style.display = 'none';
+    this._open = false;
+  },
+  openNewAppointment() {
+    this.close();
+    NewAppointmentView.open();
+  },
+  openNewPatient() {
+    this.close();
+    NewPatientWizard.open();
+  }
+};
+window.FabDial = FabDial;
+
+// Cerrar dial al hacer click fuera
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#fab-dial')) FabDial.close();
 });
 
 // ============================================================
