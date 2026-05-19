@@ -6,6 +6,82 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
 
+const { sendMessage } = require('../services/whatsapp');
+
+// GET /api/messages/conversations — lista de conversaciones del doctor (un hilo por paciente)
+router.get('/conversations', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const rows = await db.prepare(`
+      SELECT
+        p.id as patient_id,
+        p.nombre as paciente_nombre,
+        p.telefono as paciente_telefono,
+        m.mensaje as ultimo_mensaje,
+        m.tipo as ultimo_tipo,
+        m.created_at as ultima_fecha,
+        SUM(CASE WHEN m.tipo='respuesta_entrada' AND m.leido=0 THEN 1 ELSE 0 END) as no_leidos
+      FROM message_log m
+      JOIN patients p ON p.id = m.patient_id
+      WHERE m.user_id = ?
+      GROUP BY p.id
+      ORDER BY m.created_at DESC
+    `).all(uid);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('[Messages] Error al obtener conversaciones:', err.message);
+    res.status(500).json({ error: 'Error al obtener conversaciones' });
+  }
+});
+
+// GET /api/messages/conversation/:patientId — hilo completo con un paciente
+router.get('/conversation/:patientId', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const { patientId } = req.params;
+    const rows = await db.prepare(`
+      SELECT m.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono
+      FROM message_log m
+      JOIN patients p ON p.id = m.patient_id
+      WHERE m.user_id = ? AND m.patient_id = ?
+      ORDER BY m.created_at ASC
+    `).all(uid, patientId);
+
+    // Marcar como leídos
+    await db.prepare(`UPDATE message_log SET leido=1 WHERE user_id=? AND patient_id=? AND tipo='respuesta_entrada'`)
+      .run(uid, patientId);
+
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('[Messages] Error al obtener hilo:', err.message);
+    res.status(500).json({ error: 'Error al obtener conversación' });
+  }
+});
+
+// POST /api/messages/reply — el doctor responde a un paciente
+router.post('/reply', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const { patient_id, mensaje } = req.body;
+    if (!patient_id || !mensaje) return res.status(400).json({ error: 'Faltan campos' });
+
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
+
+    const result = await sendMessage(patient.telefono, mensaje);
+
+    await db.prepare(`
+      INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado, error_detalle)
+      VALUES (?, ?, 'doctor_reply', ?, ?, ?)
+    `).run(patient_id, uid, mensaje, result.success ? 1 : 2, result.error || null);
+
+    res.json({ success: result.success, demo: result.demo || false });
+  } catch (err) {
+    console.error('[Messages] Error al responder:', err.message);
+    res.status(500).json({ error: 'Error al enviar respuesta' });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 50 } = req.query;

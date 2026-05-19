@@ -137,7 +137,10 @@ const remoteApi = {
   },
 
   messages: {
-    list: (p = {}) => remoteApi.request('GET', `/messages?${new URLSearchParams(p)}`),
+    list:          (p = {})              => remoteApi.request('GET',  `/messages?${new URLSearchParams(p)}`),
+    conversations: ()                    => remoteApi.request('GET',  '/messages/conversations'),
+    conversation:  (patientId)           => remoteApi.request('GET',  `/messages/conversation/${patientId}`),
+    reply:         (patient_id, mensaje) => remoteApi.request('POST', '/messages/reply', { patient_id, mensaje }),
   },
 
   odontogram: {

@@ -95,6 +95,9 @@ const Router = {
     // Cerrar dropdown de ajustes si estaba abierto
     if (window.NavDropdown) NavDropdown.close();
 
+    // Limpiar polling de mensajes al salir de esa vista
+    if (routeKey !== 'messages' && window.MessagesView?.destroy) MessagesView.destroy();
+
     const handler = this.routes[routeKey] || this.routes['dashboard'];
     try {
       await handler(main, routeParams);

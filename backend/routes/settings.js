@@ -58,6 +58,7 @@ router.post('/test-whatsapp', async (req, res) => {
   const mensaje = `✅ *Prueba de WhatsApp — DentalFlow*\n\nSi ves este mensaje, la integración con WhatsApp está funcionando correctamente. 🦷`;
 
   const result = await sendMessage(telefono, mensaje);
+
   if (result.success) {
     res.json({ success: true, demo: result.demo || false });
   } else {

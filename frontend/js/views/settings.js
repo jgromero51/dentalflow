@@ -103,24 +103,47 @@ const SettingsView = {
         </div>
       </div>
 
-      <!-- Sección: Recordatorios -->
+      <!-- Sección: WhatsApp con Twilio -->
       <div class="settings-section">
         <div class="settings-section-label">
           <span class="settings-section-icon">💬</span>
-          Recordatorios Automáticos
+          WhatsApp Automático (Twilio)
         </div>
         <div class="settings-card">
+          <div class="form-hint" style="margin-bottom:14px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--primary);">
+            Necesitás una cuenta en <strong>twilio.com</strong> con un número WhatsApp habilitado.
+            Cada doctor configura sus propias credenciales.
+          </div>
           <div class="form-group">
-            <label class="form-label" for="s-doctor-phone">Tu número de WhatsApp (para notificaciones)</label>
+            <label class="form-label" for="s-twilio-sid">Account SID</label>
+            <input id="s-twilio-sid" class="form-control" type="text"
+              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value="${this._esc(s.twilio_account_sid)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-twilio-token">Auth Token</label>
+            <input id="s-twilio-token" class="form-control" type="password"
+              placeholder="••••••••••••••••••••••••••••••••"
+              value="${this._esc(s.twilio_auth_token)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-twilio-from">Tu número WhatsApp de Twilio</label>
             <div style="display:flex;gap:8px;align-items:center;">
-              <input id="s-doctor-phone" class="form-control" type="tel"
-                placeholder="+5491198765432"
-                value="${this._esc(s.doctor_phone)}" style="flex:1;" />
+              <input id="s-twilio-from" class="form-control" type="tel"
+                placeholder="+14155238886"
+                value="${this._esc(s.twilio_from_number)}" style="flex:1;" />
               <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0;" onclick="SettingsView._testWhatsApp()">
                 📱 Probar
               </button>
             </div>
-            <div class="form-hint">Cuando un paciente confirme o cancele su cita, recibirás un mensaje en este número.</div>
+            <div class="form-hint">Guardá primero, luego probá. El mensaje de prueba se enviará a tu número de doctor.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-doctor-phone">Tu número personal (recibir notificaciones)</label>
+            <input id="s-doctor-phone" class="form-control" type="tel"
+              placeholder="+5491198765432"
+              value="${this._esc(s.doctor_phone)}" />
+            <div class="form-hint">A este número te llegará el mensaje de prueba y notificaciones de cancelaciones.</div>
           </div>
           <div class="settings-toggle-row" id="toggle-24h" onclick="SettingsView._toggle('reminder_24h_active','toggle-24h')">
             <div class="settings-toggle-info">
@@ -238,15 +261,18 @@ const SettingsView = {
     const get = id => document.getElementById(id)?.value?.trim() ?? '';
 
     const payload = {
-      clinic_name:         get('s-clinic-name'),
-      clinic_phone:        get('s-clinic-phone'),
-      clinic_email:        get('s-clinic-email'),
-      clinic_address:      get('s-clinic-address'),
-      clinic_hours:        get('s-clinic-hours'),
-      clinic_welcome_msg:  document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
-      reminder_24h_active: this._settings.reminder_24h_active ?? 'true',
-      reminder_4h_active:  this._settings.reminder_4h_active  ?? 'true',
-      doctor_phone:        get('s-doctor-phone'),
+      clinic_name:          get('s-clinic-name'),
+      clinic_phone:         get('s-clinic-phone'),
+      clinic_email:         get('s-clinic-email'),
+      clinic_address:       get('s-clinic-address'),
+      clinic_hours:         get('s-clinic-hours'),
+      clinic_welcome_msg:   document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
+      reminder_24h_active:  this._settings.reminder_24h_active ?? 'true',
+      reminder_4h_active:   this._settings.reminder_4h_active  ?? 'true',
+      doctor_phone:         get('s-doctor-phone'),
+      twilio_account_sid:   get('s-twilio-sid'),
+      twilio_auth_token:    get('s-twilio-token'),
+      twilio_from_number:   get('s-twilio-from'),
     };
 
     if (!payload.clinic_name) {

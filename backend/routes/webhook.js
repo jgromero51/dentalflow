@@ -91,19 +91,19 @@ router.post('/', async (req, res) => {
         await notificarDoctor(appt, patient, 'cancelar');
       }
 
-      // Guardar log del mensaje entrante
+      // Guardar log del mensaje entrante (con user_id del doctor dueño de la cita)
       await db.prepare(`
-        INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado)
-        VALUES (?, ?, 'respuesta_entrada', ?, 1)
-      `).run(appt.id, patient.id, text);
+        INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
+        VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
+      `).run(appt.id, patient.id, appt.user_id || null, text);
 
       // Enviar respuesta automática
       if (respuesta) {
         await sendMessage(telefonoFormateado, respuesta);
         await db.prepare(`
-          INSERT INTO message_log (appointment_id, patient_id, tipo, mensaje, enviado)
-          VALUES (?, ?, 'respuesta_salida', ?, 1)
-        `).run(appt.id, patient.id, respuesta);
+          INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
+          VALUES (?, ?, ?, 'respuesta_salida', ?, 1)
+        `).run(appt.id, patient.id, appt.user_id || null, respuesta);
       }
     }
   } catch (err) {
