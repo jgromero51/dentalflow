@@ -46,12 +46,18 @@ const PatientDetailView = {
         <button class="btn btn-icon" style="margin-bottom:12px;" onclick="Router.navigate('patients')">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
-        <div style="display:flex; align-items:center; gap: 16px;">
-          <div class="patient-avatar" style="width:64px;height:64px;font-size:24px;">${initials}</div>
-          <div>
-            <h2 style="margin:0; font-size:20px;">${p.nombre}</h2>
-            <div style="color:var(--text-secondary); font-size:14px; margin-top:4px;">${p.telefono}</div>
+        <div style="display:flex; align-items:center; gap: 16px; justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div class="patient-avatar" style="width:64px;height:64px;font-size:24px;">${initials}</div>
+            <div>
+              <h2 style="margin:0; font-size:20px;">${p.nombre}</h2>
+              <div style="color:var(--text-secondary); font-size:14px; margin-top:4px;">${p.telefono || 'Sin teléfono'}</div>
+              ${p.email ? `<div style="color:var(--text-secondary); font-size:13px;">${p.email}</div>` : ''}
+            </div>
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="PatientDetailView.openEditModal()" style="flex-shrink:0;">
+            ✏️ Editar
+          </button>
         </div>
         
         <div class="tabs" style="display:flex; gap:16px; margin-top:24px; border-bottom:1px solid var(--border-color);">
@@ -481,6 +487,93 @@ const PatientDetailView = {
       status.style.display = 'flex';
     } catch(err) {
       Toast.error('No se pudo acceder al micrófono: ' + err.message);
+    }
+  },
+
+  openEditModal() {
+    const p = this.patient;
+    const esc = v => (v || '').replace(/"/g, '&quot;').replace(/</g,'&lt;');
+
+    const modal = document.createElement('div');
+    modal.id = 'edit-patient-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-surface);border-radius:16px;padding:24px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;font-size:18px;">Editar Paciente</h3>
+          <button onclick="document.getElementById('edit-patient-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">×</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre completo *</label>
+          <input id="ep-nombre" class="form-control" type="text" value="${esc(p.nombre)}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono WhatsApp</label>
+          <input id="ep-telefono" class="form-control" type="tel" placeholder="+51912345678" value="${esc(p.telefono)}" />
+          <div class="form-hint">Incluí el código de país: +51 para Perú</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input id="ep-email" class="form-control" type="email" value="${esc(p.email)}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fecha de nacimiento</label>
+          <input id="ep-fecha" class="form-control" type="date" value="${esc(p.fecha_nacimiento)}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">DNI / Documento</label>
+          <input id="ep-dni" class="form-control" type="text" value="${esc(p.dni)}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dirección</label>
+          <input id="ep-direccion" class="form-control" type="text" value="${esc(p.direccion)}" />
+        </div>
+        <div id="ep-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('edit-patient-modal').remove()">Cancelar</button>
+          <button id="ep-save-btn" class="btn btn-primary" style="flex:1;" onclick="PatientDetailView.saveEdit()">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  async saveEdit() {
+    const get = id => document.getElementById(id)?.value?.trim() || '';
+    const nombre = get('ep-nombre');
+    const errEl  = document.getElementById('ep-error');
+    const btn    = document.getElementById('ep-save-btn');
+
+    if (!nombre) {
+      errEl.textContent = 'El nombre es obligatorio.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Guardando...';
+    errEl.style.display = 'none';
+
+    try {
+      const payload = {
+        nombre,
+        telefono:        get('ep-telefono'),
+        email:           get('ep-email'),
+        fecha_nacimiento: get('ep-fecha'),
+        dni:             get('ep-dni'),
+        direccion:       get('ep-direccion'),
+      };
+
+      const res = await api.patients.update(this.patient.id, payload);
+      this.patient = { ...this.patient, ...payload };
+      document.getElementById('edit-patient-modal')?.remove();
+      Toast.success('Paciente actualizado.');
+      this.updateView();
+    } catch(err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Guardar';
     }
   }
 };
