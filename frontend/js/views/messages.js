@@ -10,12 +10,17 @@ const MessagesView = {
   async render(container) {
     container.innerHTML = `
       <div class="fade-in" id="messages-view" style="height:calc(100vh - 120px);display:flex;flex-direction:column;">
-        <div class="settings-hero" style="flex-shrink:0;">
-          <div class="settings-hero-icon">💬</div>
-          <div>
-            <h1 class="settings-hero-title">Mensajes</h1>
-            <p class="settings-hero-sub">Conversaciones con tus pacientes via WhatsApp</p>
+        <div class="settings-hero" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="settings-hero-icon">💬</div>
+            <div>
+              <h1 class="settings-hero-title">Mensajes</h1>
+              <p class="settings-hero-sub">Conversaciones con tus pacientes via WhatsApp</p>
+            </div>
           </div>
+          <button class="btn btn-primary btn-sm" onclick="MessagesView.openNewMessageModal()" style="flex-shrink:0;">
+            ✏️ Nuevo mensaje
+          </button>
         </div>
         <div id="chat-shell" style="flex:1;display:flex;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:0;">
           <div id="conv-list" style="width:320px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg-surface);">
@@ -215,6 +220,84 @@ const MessagesView = {
         } catch (_) {}
       }
     }, 15000);
+  },
+
+  async openNewMessageModal() {
+    // Cargar lista de pacientes
+    let patients = [];
+    try {
+      const res = await api.patients.list('');
+      patients = res.data || [];
+    } catch(e) {
+      Toast.error('Error al cargar pacientes'); return;
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'new-msg-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+    const options = patients.map(p =>
+      `<option value="${p.id}" data-phone="${p.telefono || ''}">${p.nombre} ${p.telefono ? '— ' + p.telefono : '(sin teléfono)'}</option>`
+    ).join('');
+
+    modal.innerHTML = `
+      <div style="background:var(--bg-surface);border-radius:16px;padding:24px;width:100%;max-width:460px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;font-size:18px;">Nuevo mensaje</h3>
+          <button onclick="document.getElementById('new-msg-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">×</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Paciente</label>
+          <select id="nm-patient" class="form-control">
+            <option value="">-- Seleccioná un paciente --</option>
+            ${options}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mensaje</label>
+          <textarea id="nm-mensaje" class="form-control" rows="4" placeholder="Escribí el mensaje..."></textarea>
+        </div>
+        <div id="nm-error" style="display:none;color:var(--danger);font-size:13px;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('new-msg-modal').remove()">Cancelar</button>
+          <button id="nm-send-btn" class="btn btn-primary" style="flex:1;" onclick="MessagesView._sendNewMessage()">
+            Enviar por WhatsApp
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  async _sendNewMessage() {
+    const patientId = document.getElementById('nm-patient')?.value;
+    const mensaje   = document.getElementById('nm-mensaje')?.value?.trim();
+    const errEl     = document.getElementById('nm-error');
+    const btn       = document.getElementById('nm-send-btn');
+
+    if (!patientId) { errEl.textContent = 'Seleccioná un paciente.'; errEl.style.display = 'block'; return; }
+    if (!mensaje)   { errEl.textContent = 'Escribí un mensaje.';     errEl.style.display = 'block'; return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    errEl.style.display = 'none';
+
+    try {
+      const res = await api.messages.reply(parseInt(patientId), mensaje);
+      document.getElementById('new-msg-modal')?.remove();
+      if (res.demo) {
+        Toast.warning('Modo demo: mensaje no enviado realmente.');
+      } else {
+        Toast.success('✅ Mensaje enviado por WhatsApp.');
+      }
+      await this._loadConversations();
+      this._openConversation(parseInt(patientId));
+    } catch(err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Enviar por WhatsApp';
+    }
   },
 
   destroy() {
