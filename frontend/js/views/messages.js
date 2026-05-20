@@ -7,11 +7,25 @@ const MessagesView = {
   _activePatientId: null,
   _pollInterval: null,
 
+  _isMobile() { return window.innerWidth < 640; },
+
   async render(container) {
     container.innerHTML = `
+      <style>
+        #chat-shell { display:flex; }
+        #conv-list  { width:320px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg-surface); }
+        #chat-panel { flex:1;display:flex;flex-direction:column;background:var(--bg-primary);min-width:0; }
+        @media(max-width:639px){
+          #conv-list  { width:100% !important; border-right:none; }
+          #chat-panel { display:none !important; }
+          #conv-list.hidden-mobile  { display:none !important; }
+          #chat-panel.visible-mobile{ display:flex !important; }
+        }
+      </style>
       <div class="fade-in" id="messages-view" style="height:calc(100vh - 120px);display:flex;flex-direction:column;">
         <div class="settings-hero" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:12px;">
+            <div id="chat-back-btn" style="display:none;cursor:pointer;font-size:22px;padding-right:4px;" onclick="MessagesView._showList()">←</div>
             <div class="settings-hero-icon">💬</div>
             <div>
               <h1 class="settings-hero-title">Mensajes</h1>
@@ -22,11 +36,11 @@ const MessagesView = {
             ✏️ Nuevo mensaje
           </button>
         </div>
-        <div id="chat-shell" style="flex:1;display:flex;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:0;">
-          <div id="conv-list" style="width:320px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg-surface);">
+        <div id="chat-shell" style="flex:1;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:0;">
+          <div id="conv-list">
             <div class="loading-spinner" style="margin:40px auto;"></div>
           </div>
-          <div id="chat-panel" style="flex:1;display:flex;flex-direction:column;background:var(--bg-primary);">
+          <div id="chat-panel">
             <div id="chat-empty" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);gap:12px;">
               <div style="font-size:48px;">💬</div>
               <div style="font-size:15px;">Seleccioná una conversación</div>
@@ -101,9 +115,26 @@ const MessagesView = {
     el.innerHTML = items;
   },
 
+  _showList() {
+    document.getElementById('conv-list')?.classList.remove('hidden-mobile');
+    document.getElementById('chat-panel')?.classList.remove('visible-mobile');
+    const backBtn = document.getElementById('chat-back-btn');
+    if (backBtn) backBtn.style.display = 'none';
+    this._activePatientId = null;
+    this._renderConvList();
+  },
+
   async _openConversation(patientId) {
     this._activePatientId = patientId;
     this._renderConvList();
+
+    // En móvil: ocultar lista y mostrar panel
+    if (this._isMobile()) {
+      document.getElementById('conv-list')?.classList.add('hidden-mobile');
+      document.getElementById('chat-panel')?.classList.add('visible-mobile');
+      const backBtn = document.getElementById('chat-back-btn');
+      if (backBtn) backBtn.style.display = 'block';
+    }
 
     const panel = document.getElementById('chat-panel');
     if (!panel) return;
