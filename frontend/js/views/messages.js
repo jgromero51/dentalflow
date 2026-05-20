@@ -10,18 +10,8 @@ const MessagesView = {
   _isMobile() { return window.innerWidth < 640; },
 
   async render(container) {
+    const mobile = this._isMobile();
     container.innerHTML = `
-      <style>
-        #chat-shell { display:flex; }
-        #conv-list  { width:320px;flex-shrink:0;border-right:1px solid var(--border);overflow-y:auto;background:var(--bg-surface); }
-        #chat-panel { flex:1;display:flex;flex-direction:column;background:var(--bg-primary);min-width:0; }
-        @media(max-width:639px){
-          #conv-list  { width:100% !important; border-right:none; }
-          #chat-panel { display:none !important; }
-          #conv-list.hidden-mobile  { display:none !important; }
-          #chat-panel.visible-mobile{ display:flex !important; }
-        }
-      </style>
       <div class="fade-in" id="messages-view" style="height:calc(100vh - 120px);display:flex;flex-direction:column;">
         <div class="settings-hero" style="flex-shrink:0;display:flex;justify-content:space-between;align-items:center;">
           <div style="display:flex;align-items:center;gap:12px;">
@@ -36,11 +26,11 @@ const MessagesView = {
             ✏️ Nuevo mensaje
           </button>
         </div>
-        <div id="chat-shell" style="flex:1;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:0;">
-          <div id="conv-list">
+        <div id="chat-shell" style="flex:1;display:flex;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:0;">
+          <div id="conv-list" style="${mobile ? 'width:100%;' : 'width:320px;flex-shrink:0;border-right:1px solid var(--border);'}overflow-y:auto;background:var(--bg-surface);">
             <div class="loading-spinner" style="margin:40px auto;"></div>
           </div>
-          <div id="chat-panel">
+          <div id="chat-panel" style="display:${mobile ? 'none' : 'flex'};flex:1;flex-direction:column;background:var(--bg-primary);">
             <div id="chat-empty" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-muted);gap:12px;">
               <div style="font-size:48px;">💬</div>
               <div style="font-size:15px;">Seleccioná una conversación</div>
@@ -116,10 +106,12 @@ const MessagesView = {
   },
 
   _showList() {
-    document.getElementById('conv-list')?.classList.remove('hidden-mobile');
-    document.getElementById('chat-panel')?.classList.remove('visible-mobile');
-    const backBtn = document.getElementById('chat-back-btn');
-    if (backBtn) backBtn.style.display = 'none';
+    const list  = document.getElementById('conv-list');
+    const panel = document.getElementById('chat-panel');
+    const back  = document.getElementById('chat-back-btn');
+    if (list)  { list.style.display = 'block'; list.style.width = '100%'; }
+    if (panel) panel.style.display = 'none';
+    if (back)  back.style.display = 'none';
     this._activePatientId = null;
     this._renderConvList();
   },
@@ -130,10 +122,12 @@ const MessagesView = {
 
     // En móvil: ocultar lista y mostrar panel
     if (this._isMobile()) {
-      document.getElementById('conv-list')?.classList.add('hidden-mobile');
-      document.getElementById('chat-panel')?.classList.add('visible-mobile');
-      const backBtn = document.getElementById('chat-back-btn');
-      if (backBtn) backBtn.style.display = 'block';
+      const list  = document.getElementById('conv-list');
+      const panel = document.getElementById('chat-panel');
+      const back  = document.getElementById('chat-back-btn');
+      if (list)  list.style.display = 'none';
+      if (panel) { panel.style.display = 'flex'; panel.style.width = '100%'; }
+      if (back)  back.style.display = 'block';
     }
 
     const panel = document.getElementById('chat-panel');
