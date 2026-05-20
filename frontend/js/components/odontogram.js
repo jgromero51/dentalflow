@@ -41,9 +41,9 @@ const OdontogramComponent = {
         .tooth-wrapper.lower .tooth-number { margin-top: 4px; margin-bottom: 0; order: 2; }
         
         .diag-menu {
-          position: absolute; background: var(--bg-elevated); border: 1px solid var(--border-color);
+          position: fixed; background: var(--bg-elevated); border: 1px solid var(--border-color);
           border-radius: var(--radius-md); padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-          display: none; flex-direction: column; gap: 4px; z-index: 100;
+          display: none; flex-direction: column; gap: 4px; z-index: 9999;
         }
         .diag-btn {
           display: flex; align-items: center; gap: 8px; padding: 6px 12px;
@@ -117,12 +117,20 @@ const OdontogramComponent = {
         const containerRect = this.container.getBoundingClientRect();
         
         menu.style.display = 'flex';
-        // Posicionar menú cerca del diente
-        let top = (rect.bottom - containerRect.top) + 8;
-        let left = (rect.left - containerRect.left);
-        
-        menu.style.top = top + 'px';
+        // Posicionar menú cerca del diente usando coordenadas fijas del viewport
+        const menuW = 180;
+        const menuH = 170;
+        let top  = rect.bottom + 8;
+        let left = rect.left + (rect.width / 2) - (menuW / 2);
+
+        // Evitar que se salga de pantalla
+        if (left < 8) left = 8;
+        if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+        if (top + menuH > window.innerHeight - 8) top = rect.top - menuH - 8;
+
+        menu.style.top  = top + 'px';
         menu.style.left = left + 'px';
+        menu.style.width = menuW + 'px';
         
         e.stopPropagation();
       });
