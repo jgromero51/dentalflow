@@ -80,6 +80,11 @@ router.post('/', async (req, res) => {
         ).get(patient.id);
         userId = lastAppt?.user_id || null;
       }
+      // Fallback: asignar al primer usuario admin si no hay user_id
+      if (!userId) {
+        const adminUser = await db.prepare(`SELECT id FROM users ORDER BY id ASC LIMIT 1`).get();
+        userId = adminUser?.id || 1;
+      }
 
       // Guardar siempre el mensaje entrante
       await db.prepare(`
