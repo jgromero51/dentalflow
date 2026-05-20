@@ -39,6 +39,7 @@ const PatientDetailView = {
       tabContent = this.renderClinica();
     } else if (this.currentTab === 'finanzas') {
       tabContent = this.renderFinanzas();
+      setTimeout(() => this.loadProformaHistory(), 0);
     }
 
     view.innerHTML = `
@@ -173,9 +174,11 @@ const PatientDetailView = {
     const deuda = totalCosto - totalPagado;
 
     let html = `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-        <button class="btn btn-primary btn-sm" onclick="PatientDetailView.openProforma()">📄 Generar Proforma</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <span style="font-size:14px;font-weight:600;color:var(--text-primary);">Proformas</span>
+        <button class="btn btn-primary btn-sm" onclick="PatientDetailView.openProforma()">📄 Nueva Proforma</button>
       </div>
+      <div id="proforma-history" style="margin-bottom:20px;"></div>
       <div style="display:flex; gap:16px; margin-bottom:24px;">
         <div class="card" style="flex:1; text-align:center;">
           <div style="font-size:12px; color:var(--text-secondary);">Total Facturado</div>
@@ -257,9 +260,10 @@ const PatientDetailView = {
     }
   },
 
-  openProforma() {
+  openProforma(proformaId = null, savedItems = null, savedNotas = '') {
     const p = this.patient;
-    document.getElementById('modal-title').textContent = '📄 Generar Proforma';
+    this._editingProformaId = proformaId || null;
+    document.getElementById('modal-title').textContent = proformaId ? '✏️ Editar Proforma' : '📄 Nueva Proforma';
     document.getElementById('modal-body').innerHTML = `
       <div style="display:flex;flex-direction:column;gap:16px;">
         <div style="font-size:14px;color:var(--text-secondary);">
@@ -269,32 +273,219 @@ const PatientDetailView = {
         <div id="proforma-items">
           <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;">
             <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">TRATAMIENTO</span>
-            <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">PRECIO</span>
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">PRECIO (S/)</span>
             <span></span>
           </div>
         </div>
 
-        <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.addProformaItem()" style="align-self:flex-start;">
-          + Agregar ítem
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.addProformaItem()">+ Agregar ítem</button>
+          <button id="proforma-voice-btn" class="btn btn-secondary btn-sm" onclick="PatientDetailView.dictarProforma()" style="display:flex;align-items:center;gap:6px;">
+            🎙️ Dictar por voz
+          </button>
+          <span style="font-size:12px;color:var(--text-muted);">La IA completa precios del catálogo</span>
+        </div>
 
         <div>
           <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">Notas / condiciones (opcional)</label>
-          <textarea id="proforma-notas" rows="2" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px;color:var(--text-primary);font-size:13px;resize:vertical;" placeholder="Ej: Incluye anestesia, no incluye rayos X..."></textarea>
+          <textarea id="proforma-notas" rows="2" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px;color:var(--text-primary);font-size:13px;resize:vertical;" placeholder="Ej: Incluye anestesia, no incluye rayos X...">${savedNotas}</textarea>
         </div>
 
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+        <div id="proforma-total" style="text-align:right;font-size:15px;font-weight:700;color:var(--primary);"></div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px;">
           <button class="btn btn-secondary btn-sm" onclick="closeModal()">Cancelar</button>
-          <button class="btn btn-primary btn-sm" onclick="PatientDetailView.printProforma()">🖨️ Imprimir / Guardar PDF</button>
+          <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.saveProforma()">💾 Guardar</button>
+          <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.printProforma()">🖨️ PDF</button>
+          ${proformaId ? `<button class="btn btn-primary btn-sm" onclick="PatientDetailView.sendProformaWhatsApp(${proformaId})">📱 Enviar WhatsApp</button>` : ''}
         </div>
       </div>
     `;
-    // Agregar el primer ítem vacío automáticamente
-    this.addProformaItem();
+
+    if (savedItems && savedItems.length > 0) {
+      savedItems.forEach(it => this.addProformaItem(it.nombre, it.precio));
+    } else {
+      this.addProformaItem();
+    }
+    this._updateProformaTotal();
     openModal();
   },
 
-  addProformaItem() {
+  _getProformaItems() {
+    const items = [];
+    document.querySelectorAll('#proforma-items .proforma-row').forEach(row => {
+      const inputs = row.querySelectorAll('input');
+      const nombre = inputs[0]?.value.trim();
+      const precio = parseFloat(inputs[1]?.value) || 0;
+      if (nombre) items.push({ nombre, precio });
+    });
+    return items;
+  },
+
+  _updateProformaTotal() {
+    const items = this._getProformaItems();
+    const total = items.reduce((s, i) => s + i.precio, 0);
+    const el = document.getElementById('proforma-total');
+    if (el) el.textContent = `Total: S/ ${total.toFixed(2)}`;
+  },
+
+  async saveProforma() {
+    const items = this._getProformaItems();
+    const notas = document.getElementById('proforma-notas')?.value || '';
+    if (items.length === 0) { Toast.warning('Agregá al menos un tratamiento.'); return; }
+
+    try {
+      if (this._editingProformaId) {
+        await api.proformas.update(this._editingProformaId, { items, notas, estado: 'borrador' });
+        Toast.success('Proforma actualizada.');
+      } else {
+        const res = await api.proformas.create({ patient_id: this.patient.id, items, notas });
+        this._editingProformaId = res.data.id;
+        // Actualizar modal para mostrar botón WhatsApp
+        const btnRow = document.querySelector('#modal-body .btn-primary');
+        if (btnRow && btnRow.parentElement) {
+          const waBtn = document.createElement('button');
+          waBtn.className = 'btn btn-primary btn-sm';
+          waBtn.onclick = () => this.sendProformaWhatsApp(this._editingProformaId);
+          waBtn.textContent = '📱 Enviar WhatsApp';
+          btnRow.parentElement.appendChild(waBtn);
+        }
+        Toast.success('Proforma guardada.');
+      }
+      this.loadProformaHistory();
+    } catch (err) {
+      Toast.error('Error al guardar: ' + err.message);
+    }
+  },
+
+  async sendProformaWhatsApp(id) {
+    const proformaId = id || this._editingProformaId;
+    if (!proformaId) { Toast.warning('Guardá la proforma primero.'); return; }
+    try {
+      const res = await api.proformas.sendWhatsApp(proformaId);
+      if (res.demo) {
+        Toast.warning('Modo demo: no se envió realmente.');
+      } else {
+        Toast.success('✅ Presupuesto enviado por WhatsApp al paciente.');
+        this.loadProformaHistory();
+      }
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async loadProformaHistory() {
+    const el = document.getElementById('proforma-history');
+    if (!el) return;
+    try {
+      const res  = await api.proformas.list(this.patient.id);
+      const rows = res.data || [];
+      if (rows.length === 0) {
+        el.innerHTML = `<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px;">Sin proformas guardadas.</div>`;
+        return;
+      }
+      el.innerHTML = rows.map(pf => {
+        const fecha  = new Date((pf.created_at || '') + (pf.created_at && !pf.created_at.includes('Z') ? 'Z' : '')).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+        const estado = pf.estado === 'enviada'
+          ? `<span style="background:#238636;color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;">Enviada</span>`
+          : `<span style="background:var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;font-size:11px;">Borrador</span>`;
+        return `
+          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-primary);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Proforma #${pf.id} — S/ ${parseFloat(pf.total).toFixed(2)}</div>
+              <div style="font-size:11px;color:var(--text-muted);">${fecha} · ${pf.items?.length || 0} ítem(s)</div>
+            </div>
+            ${estado}
+            <button onclick="PatientDetailView.openProforma(${pf.id}, ${JSON.stringify(pf.items).replace(/"/g,'&quot;')}, '${(pf.notas||'').replace(/'/g,"\\'")}')"
+              style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 4px;" title="Editar">✏️</button>
+            <button onclick="PatientDetailView._deleteProforma(${pf.id})"
+              style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>
+          </div>`;
+      }).join('');
+    } catch (err) {
+      el.innerHTML = `<div style="font-size:13px;color:var(--danger);">Error al cargar proformas.</div>`;
+    }
+  },
+
+  async _deleteProforma(id) {
+    if (!confirm('¿Eliminar esta proforma?')) return;
+    try {
+      await api.proformas.remove(id);
+      Toast.success('Eliminada.');
+      this.loadProformaHistory();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async dictarProforma() {
+    const btn = document.getElementById('proforma-voice-btn');
+    if (!btn) return;
+
+    // Si ya está grabando, detener
+    if (this._proformaRecorder && this._proformaRecorder.state === 'recording') {
+      this._proformaRecorder.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      this._proformaRecorder = recorder;
+      const chunks = [];
+
+      btn.innerHTML = '⏹️ Detener grabación';
+      btn.style.background = 'var(--danger)';
+      btn.style.color = '#fff';
+
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        btn.innerHTML = '⏳ Procesando...';
+        btn.disabled = true;
+
+        try {
+          const blob   = new Blob(chunks, { type: 'audio/webm' });
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const base64 = reader.result.split(',')[1];
+            try {
+              const res = await api.catalog.proformaVoice(base64, 'webm');
+              const items = res.data || [];
+              if (items.length === 0) {
+                Toast.warning('No se detectaron tratamientos. Intentá de nuevo.');
+              } else {
+                // Limpiar items actuales y agregar los detectados
+                document.getElementById('proforma-items').querySelectorAll('.proforma-row').forEach(r => r.remove());
+                items.forEach(item => this.addProformaItem(item.nombre, item.precio));
+                Toast.success(`✅ ${items.length} tratamiento(s) detectados.`);
+              }
+            } catch (err) {
+              Toast.error('Error IA: ' + err.message);
+            } finally {
+              btn.innerHTML = '🎙️ Dictar por voz';
+              btn.style.background = '';
+              btn.style.color = '';
+              btn.disabled = false;
+            }
+          };
+          reader.readAsDataURL(blob);
+        } catch (err) {
+          Toast.error('Error al procesar audio.');
+          btn.innerHTML = '🎙️ Dictar por voz';
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }
+      };
+
+      recorder.start();
+    } catch (err) {
+      Toast.error('No se pudo acceder al micrófono: ' + err.message);
+    }
+  },
+
+  addProformaItem(nombre = '', precio = '') {
     const container = document.getElementById('proforma-items');
     if (!container) return;
     const idx = container.querySelectorAll('.proforma-row').length;
@@ -302,8 +493,8 @@ const PatientDetailView = {
     row.className = 'proforma-row';
     row.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;margin-bottom:6px;';
     row.innerHTML = `
-      <input type="text" placeholder="Ej: Extracción molar" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:100%;box-sizing:border-box;" />
-      <input type="number" placeholder="$0" min="0" step="0.01" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:90px;box-sizing:border-box;" />
+      <input type="text" placeholder="Ej: Extracción molar" value="${nombre}" oninput="PatientDetailView._updateProformaTotal()" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:100%;box-sizing:border-box;" />
+      <input type="number" placeholder="0" min="0" step="0.01" value="${precio}" oninput="PatientDetailView._updateProformaTotal()" style="background:var(--surface);border:1px solid var(--border-color);border-radius:8px;padding:8px 10px;color:var(--text-primary);font-size:13px;width:90px;box-sizing:border-box;" />
       <button onclick="this.closest('.proforma-row').remove()" style="background:none;border:none;color:#da3633;font-size:18px;cursor:pointer;padding:0 4px;">✕</button>
     `;
     container.appendChild(row);

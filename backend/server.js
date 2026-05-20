@@ -20,6 +20,8 @@ const { requireAuth }        = require('./middleware/auth');
 const { initializeDatabase } = require('./db/database');
 const { startScheduler }     = require('./services/scheduler');
 const adminRouter            = require('./routes/admin');
+const catalogRouter          = require('./routes/catalog');
+const proformasRouter        = require('./routes/proformas');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -68,6 +70,8 @@ app.use('/api/patients',     requireAuth, patientsRouter);
 app.use('/api/settings',     requireAuth, settingsRouter);
 app.use('/api/messages',     requireAuth, messagesRouter);
 app.use('/api/odontogram',   requireAuth, odontogramRouter);
+app.use('/api/catalog',      requireAuth, catalogRouter);
+app.use('/api/proformas',    requireAuth, proformasRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

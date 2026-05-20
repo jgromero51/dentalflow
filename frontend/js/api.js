@@ -143,6 +143,22 @@ const remoteApi = {
     reply:         (patient_id, mensaje) => remoteApi.request('POST', '/messages/reply', { patient_id, mensaje }),
   },
 
+  proformas: {
+    list:        (patient_id) => remoteApi.request('GET',    `/proformas?patient_id=${patient_id}`),
+    create:      (data)       => remoteApi.request('POST',   '/proformas', data),
+    update:      (id, data)   => remoteApi.request('PUT',    `/proformas/${id}`, data),
+    remove:      (id)         => remoteApi.request('DELETE', `/proformas/${id}`),
+    sendWhatsApp:(id)         => remoteApi.request('POST',   `/proformas/${id}/send-whatsapp`),
+  },
+
+  catalog: {
+    list:          ()           => remoteApi.request('GET',    '/catalog'),
+    create:        (data)       => remoteApi.request('POST',   '/catalog', data),
+    update:        (id, data)   => remoteApi.request('PUT',    `/catalog/${id}`, data),
+    remove:        (id)         => remoteApi.request('DELETE', `/catalog/${id}`),
+    proformaVoice: (audio, ext) => remoteApi.request('POST',   '/catalog/proforma-voice', { audio, ext }),
+  },
+
   odontogram: {
     get:    (patientId) => remoteApi.request('GET', `/odontogram/${patientId}`),
     create: (data)      => remoteApi.request('POST', '/odontogram', data),

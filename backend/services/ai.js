@@ -311,4 +311,84 @@ Texto dictado: "${textoTranscripto}"`;
   }
 }
 
-module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote };
+// ============================================================
+// FUNCIÓN 5: Generar items de proforma desde nota de voz
+// ============================================================
+
+/**
+ * Transcribe un audio y devuelve items de proforma usando el catálogo de tratamientos.
+ * @param {string} base64Audio
+ * @param {string} ext
+ * @param {Array<{nombre, categoria, precio}>} catalog
+ * @returns {Promise<Array<{nombre, precio}>>}
+ */
+async function generateProformaFromVoice(base64Audio, ext, catalog) {
+  const ai = getOpenAIClient();
+  if (!ai) throw new Error('La IA no está configurada. Agregá tu API Key de OpenAI en Render.');
+
+  const os   = require('os');
+  const path = require('path');
+  const fs   = require('fs');
+
+  const buffer   = Buffer.from(base64Audio, 'base64');
+  const tempPath = path.join(os.tmpdir(), `proforma_${Date.now()}.${ext.replace(/[^a-z0-9]/gi, '')}`);
+  fs.writeFileSync(tempPath, buffer);
+
+  let transcript = '';
+  try {
+    const transcription = await ai.audio.transcriptions.create({
+      file: fs.createReadStream(tempPath),
+      model: 'whisper-1',
+      language: 'es'
+    });
+    transcript = transcription.text.trim();
+    console.log('[AI] Proforma transcripta:', transcript);
+  } finally {
+    try { fs.unlinkSync(tempPath); } catch (e) {}
+  }
+
+  if (!transcript) throw new Error('No se pudo transcribir el audio.');
+
+  const catalogText = catalog.length > 0
+    ? catalog.map(t => `- ${t.nombre} (${t.categoria}): $${t.precio}`).join('\n')
+    : 'Sin tratamientos en el catálogo.';
+
+  const prompt = `Eres asistente de un consultorio dental. El doctor dictó los tratamientos para una proforma.
+
+CATÁLOGO DE TRATAMIENTOS DE LA CLÍNICA:
+${catalogText}
+
+DICTADO DEL DOCTOR:
+"${transcript}"
+
+Tu tarea: identificar cada tratamiento mencionado en el dictado y asociarlo con el más similar del catálogo.
+Si un tratamiento mencionado NO está en el catálogo, incluyelo igual con precio 0.
+
+Respondé SOLO en JSON válido, sin markdown:
+[
+  {"nombre": "nombre exacto del catálogo o como lo dijo el doctor", "precio": numero},
+  ...
+]`;
+
+  const response = await ai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 400,
+    temperature: 0.2,
+    response_format: { type: 'json_object' },
+  });
+
+  let parsed;
+  try {
+    const content = response.choices[0].message.content;
+    // La respuesta puede ser { items: [...] } o directamente [...]
+    const obj = JSON.parse(content);
+    parsed = Array.isArray(obj) ? obj : (obj.items || obj.tratamientos || Object.values(obj)[0] || []);
+  } catch (e) {
+    throw new Error('La IA devolvió un formato inesperado.');
+  }
+
+  return parsed;
+}
+
+module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice };

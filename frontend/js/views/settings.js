@@ -194,6 +194,23 @@ const SettingsView = {
         Guardar Cambios
       </button>
 
+      <!-- Sección: Catálogo de Tratamientos -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">🦷</span>
+          Catálogo de Tratamientos
+        </div>
+        <div class="settings-card">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+            Cargá tus tratamientos con precios. La IA los usará para completar proformas por voz automáticamente.
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="SettingsView.openAddTreatment()" style="margin-bottom:16px;">
+            + Agregar tratamiento
+          </button>
+          <div id="catalog-section"></div>
+        </div>
+      </div>
+
       <!-- Sección: Cuenta y Seguridad -->
       <div class="settings-section">
         <div class="settings-section-label">
@@ -240,6 +257,7 @@ const SettingsView = {
         Cerrar Sesión
       </button>
     `;
+    this.renderCatalog();
   },
 
   _esc(val) {
@@ -321,6 +339,111 @@ const SettingsView = {
       } else {
         Toast.success('✅ Mensaje enviado. Revisá tu WhatsApp en ' + telefono);
       }
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  // ============================================================
+  // CATÁLOGO DE TRATAMIENTOS
+  // ============================================================
+  async renderCatalog() {
+    const el = document.getElementById('catalog-section');
+    if (!el) return;
+    el.innerHTML = `<div class="loading-spinner" style="margin:24px auto;"></div>`;
+    try {
+      const res  = await api.catalog.list();
+      const rows = res.data || [];
+      if (rows.length === 0) {
+        el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px;">Ningún tratamiento cargado aún.</div>`;
+        return;
+      }
+      // Agrupar por categoría
+      const groups = {};
+      rows.forEach(r => {
+        if (!groups[r.categoria]) groups[r.categoria] = [];
+        groups[r.categoria].push(r);
+      });
+      el.innerHTML = Object.entries(groups).map(([cat, items]) => `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;letter-spacing:.05em;">${cat}</div>
+          ${items.map(t => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-primary);">
+              <span style="flex:1;font-size:14px;color:var(--text-primary);">${t.nombre}</span>
+              <span style="font-size:14px;font-weight:600;color:var(--primary);min-width:70px;text-align:right;">S/ ${parseFloat(t.precio).toFixed(2)}</span>
+              <button onclick="SettingsView.editTreatment(${t.id},'${t.nombre.replace(/'/g,"\\'")}','${t.categoria}',${t.precio})"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;padding:0 4px;">✏️</button>
+              <button onclick="SettingsView.deleteTreatment(${t.id})"
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:0 4px;">✕</button>
+            </div>`).join('')}
+        </div>`).join('');
+    } catch (err) {
+      el.innerHTML = `<div style="color:var(--danger);font-size:13px;">Error: ${err.message}</div>`;
+    }
+  },
+
+  openAddTreatment(id, nombre, categoria, precio) {
+    const isEdit = !!id;
+    const modal  = document.createElement('div');
+    modal.id     = 'cat-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-surface);border-radius:16px;padding:24px;width:100%;max-width:400px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;font-size:16px;">${isEdit ? 'Editar' : 'Agregar'} tratamiento</h3>
+          <button onclick="document.getElementById('cat-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">×</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre del tratamiento *</label>
+          <input id="cat-nombre" class="form-control" value="${nombre || ''}" placeholder="Ej: Limpieza dental" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <input id="cat-cat" class="form-control" value="${categoria || 'General'}" placeholder="Ej: Preventivo, Estético..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Precio (S/) *</label>
+          <input id="cat-precio" class="form-control" type="number" min="0" step="0.01" value="${precio || ''}" placeholder="0.00" />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('cat-modal').remove()">Cancelar</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="SettingsView.saveTreatment(${id || 'null'})">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.getElementById('cat-nombre').focus();
+  },
+
+  editTreatment(id, nombre, categoria, precio) {
+    this.openAddTreatment(id, nombre, categoria, precio);
+  },
+
+  async saveTreatment(id) {
+    const nombre   = document.getElementById('cat-nombre')?.value.trim();
+    const categoria = document.getElementById('cat-cat')?.value.trim() || 'General';
+    const precio   = parseFloat(document.getElementById('cat-precio')?.value);
+    if (!nombre || isNaN(precio)) { Toast.error('Completá nombre y precio.'); return; }
+    try {
+      if (id) {
+        await api.catalog.update(id, { nombre, categoria, precio });
+      } else {
+        await api.catalog.create({ nombre, categoria, precio });
+      }
+      document.getElementById('cat-modal')?.remove();
+      Toast.success('Tratamiento guardado.');
+      this.renderCatalog();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async deleteTreatment(id) {
+    if (!confirm('¿Eliminar este tratamiento?')) return;
+    try {
+      await api.catalog.remove(id);
+      Toast.success('Eliminado.');
+      this.renderCatalog();
     } catch (err) {
       Toast.error('Error: ' + err.message);
     }
