@@ -68,7 +68,8 @@ const MessagesView = {
     const items = this._conversations.map(c => {
       const isActive = c.patient_id === this._activePatientId;
       const unread   = c.no_leidos > 0;
-      const d        = new Date(c.ultima_fecha);
+      const _df      = c.ultima_fecha || '';
+      const d        = new Date(_df.endsWith('Z') || _df.includes('+') ? _df : _df + 'Z');
       const hora     = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       const entrada  = c.ultimo_tipo === 'respuesta_entrada';
 
@@ -164,7 +165,8 @@ const MessagesView = {
 
     el.innerHTML = msgs.map(m => {
       const esDoctor  = m.tipo === 'doctor_reply' || m.tipo === 'respuesta_salida';
-      const d         = new Date(m.created_at);
+      const _dc       = m.created_at || '';
+      const d         = new Date(_dc.endsWith('Z') || _dc.includes('+') ? _dc : _dc + 'Z');
       const hora      = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       const esAuto    = m.tipo.includes('recordatorio') || m.tipo === 'respuesta_salida';
 

@@ -51,16 +51,19 @@ router.post('/', async (req, res) => {
 
       console.log(`[Webhook] 📩 Mensaje de +${fromPhone}: "${text}"`);
 
-      // Buscar al paciente por teléfono
+      // Buscar al paciente por teléfono (varios formatos posibles)
       const telefonoFormateado = fromPhone.startsWith('+') ? fromPhone : `+${fromPhone}`;
-      const patient = await db.prepare('SELECT * FROM patients WHERE telefono = ?').get(telefonoFormateado);
+      const sinPlus = fromPhone.replace(/^\+/, '');
+      const patient = await db.prepare(
+        `SELECT * FROM patients WHERE telefono = ? OR telefono = ? OR telefono = ? OR telefono LIKE ?`
+      ).get(telefonoFormateado, sinPlus, fromPhone, `%${sinPlus.slice(-9)}`);
 
       if (!patient) {
         console.log(`[Webhook] Paciente no registrado: ${telefonoFormateado}`);
         continue;
       }
 
-      // Buscar la próxima cita pendiente del paciente
+      // Determinar user_id: de la cita pendiente, o de la cita más reciente del paciente
       const appt = await db.prepare(`
         SELECT a.*, p.nombre as paciente_nombre
         FROM appointments a JOIN patients p ON p.id = a.patient_id
@@ -70,8 +73,23 @@ router.post('/', async (req, res) => {
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);
 
+      let userId = appt?.user_id || null;
+      if (!userId) {
+        const lastAppt = await db.prepare(
+          `SELECT user_id FROM appointments WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1`
+        ).get(patient.id);
+        userId = lastAppt?.user_id || null;
+      }
+
+      // Guardar siempre el mensaje entrante
+      await db.prepare(`
+        INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
+        VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
+      `).run(appt?.id || null, patient.id, userId, text);
+
+      // Solo procesar IA si hay cita pendiente
       if (!appt) {
-        console.log(`[Webhook] No hay citas pendientes para ${patient.nombre}`);
+        console.log(`[Webhook] Mensaje guardado (sin cita pendiente) de ${patient.nombre}`);
         continue;
       }
 
@@ -91,19 +109,13 @@ router.post('/', async (req, res) => {
         await notificarDoctor(appt, patient, 'cancelar');
       }
 
-      // Guardar log del mensaje entrante (con user_id del doctor dueño de la cita)
-      await db.prepare(`
-        INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
-        VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
-      `).run(appt.id, patient.id, appt.user_id || null, text);
-
       // Enviar respuesta automática
       if (respuesta) {
         await sendMessage(telefonoFormateado, respuesta);
         await db.prepare(`
           INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
           VALUES (?, ?, ?, 'respuesta_salida', ?, 1)
-        `).run(appt.id, patient.id, appt.user_id || null, respuesta);
+        `).run(appt.id, patient.id, userId, respuesta);
       }
     }
   } catch (err) {
