@@ -47,7 +47,7 @@ const Router = {
     'setup':        renderSetup,
     'forgot-password': renderForgotPassword,
     'reset-password': renderResetPassword,
-
+    'join':           (c) => JoinView.render(c),
   },
 
   navigate(route) {
@@ -78,7 +78,7 @@ const Router = {
       routeParams = hash.split('/')[1];
     }
 
-    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password';
+    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password' || routeKey === 'join';
     
     // Initialize Google Auth script on auth views
     if (isAuthView) {

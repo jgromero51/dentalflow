@@ -47,7 +47,7 @@ const Router = {
     'setup':        renderSetup,
     'forgot-password': renderForgotPassword,
     'reset-password': renderResetPassword,
-
+    'join':           (c) => JoinView.render(c),
   },
 
   navigate(route) {
@@ -78,21 +78,25 @@ const Router = {
       routeParams = hash.split('/')[1];
     }
 
-    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password';
+    const isAuthView = routeKey === 'login' || routeKey === 'setup' || routeKey === 'forgot-password' || routeKey === 'reset-password' || routeKey === 'join';
     
     // Initialize Google Auth script on auth views
     if (isAuthView) {
       Auth.initGoogleAuth();
     }
 
-    const fab = document.getElementById('fab-new-appointment');
+    const fab = document.getElementById('fab-dial');
     const nav = document.getElementById('header-nav');
 
-    if (fab) fab.style.display = (isAuthView || routeKey === 'patients' || routeKey === 'patient' || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
+    if (fab) fab.style.display = (isAuthView || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
+    if (fab && FabDial) FabDial.close();
     if (nav) nav.style.display = isAuthView ? 'none' : 'flex';
 
     // Cerrar dropdown de ajustes si estaba abierto
     if (window.NavDropdown) NavDropdown.close();
+
+    // Limpiar polling de mensajes al salir de esa vista
+    if (routeKey !== 'messages' && window.MessagesView?.destroy) MessagesView.destroy();
 
     const handler = this.routes[routeKey] || this.routes['dashboard'];
     try {
@@ -159,10 +163,39 @@ async function renderPatientDetail(container, patientId) {
 // El código antiguo de showPatientDetail se elimina ya que usaremos PatientDetailView
 
 // ============================================================
-// FAB — Nueva Cita
+// FAB Speed Dial
 // ============================================================
-document.getElementById('fab-new-appointment')?.addEventListener('click', () => {
-  NewAppointmentView.open();
+const FabDial = {
+  _open: false,
+  toggle() {
+    this._open ? this.close() : this.open();
+  },
+  open() {
+    document.getElementById('fab-dial-menu')?.classList.add('open');
+    document.getElementById('fab-icon-plus').style.display = 'none';
+    document.getElementById('fab-icon-x').style.display = '';
+    this._open = true;
+  },
+  close() {
+    document.getElementById('fab-dial-menu')?.classList.remove('open');
+    document.getElementById('fab-icon-plus').style.display = '';
+    document.getElementById('fab-icon-x').style.display = 'none';
+    this._open = false;
+  },
+  openNewAppointment() {
+    this.close();
+    NewAppointmentView.open();
+  },
+  openNewPatient() {
+    this.close();
+    NewPatientWizard.open();
+  }
+};
+window.FabDial = FabDial;
+
+// Cerrar dial al hacer click fuera
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#fab-dial')) FabDial.close();
 });
 
 // ============================================================
@@ -335,4 +368,32 @@ async function init() {
       : 'appointments'; // Por defecto citas si está logueado
   } else {
     // Siempre ir a Login por defecto si no está logueado, a menos que pida setup explícitamente
-    targetRou
+    targetRoute = (window.location.hash === '#setup') ? 'setup' : 'login';
+  }
+
+  // 3. Establecer el hash correcto ANTES de desbloquear el router
+  //    Así handleRoute() siempre lee el hash definitivo.
+  window.location.hash = targetRoute;
+
+  // 4. Desbloquear el router y renderizar la ruta
+  _resolveInit();
+
+  // Cargar nombre de clínica en el header si está logueado
+  if (Auth.isLoggedIn()) loadClinicName();
+
+  await Router.handleRoute();
+}
+
+// Función global para cerrar sesión (compatible con el botón en settings.js)
+window.logout = function () {
+  if (!confirm('¿Cerrar sesión?')) return;
+  Auth.clearToken();
+  window.Router.navigate('login');
+};
+
+// Iniciar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}

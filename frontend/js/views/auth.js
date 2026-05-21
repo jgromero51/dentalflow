@@ -79,6 +79,13 @@ const LoginView = {
               Crear cuenta
             </button>
           </div>
+
+          <div class="auth-switch">
+            ¿Te invitaron a una clínica?
+            <button type="button" class="auth-switch-link" onclick="Router.navigate('join')">
+              Unirse con código
+            </button>
+          </div>
         </div>
 
         <div class="auth-footer">DentalFlow v1.0 · Tu consultorio en la palma de tu mano</div>
@@ -448,7 +455,110 @@ const ResetPasswordView = {
   }
 };
 
+// ============================================================
+// VISTA DE UNIRSE A CLÍNICA CON CÓDIGO
+// ============================================================
+const JoinView = {
+  render(container) {
+    container.innerHTML = `
+      <div class="auth-wrapper fade-in" id="join-view">
+        <div class="auth-brand">
+          <div class="auth-brand-icon">🦷</div>
+          <div class="auth-brand-name">DentalFlow</div>
+          <div class="auth-brand-sub">Unirse a una clínica</div>
+        </div>
+
+        <div class="auth-card">
+          <h2 class="auth-title">Unirse con código</h2>
+          <p class="auth-desc">El propietario de la clínica debe darte un código de invitación desde Ajustes → Equipo.</p>
+
+          <form id="join-form" onsubmit="JoinView.submit(event)" autocomplete="off">
+            <div class="form-group">
+              <label class="form-label" for="join-code">Código de invitación *</label>
+              <input id="join-code" class="form-control" type="text"
+                placeholder="Ej: A3F8B2C1" maxlength="8"
+                style="text-transform:uppercase;letter-spacing:3px;font-size:20px;font-weight:700;text-align:center;"
+                required autofocus />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="join-name">Tu nombre completo</label>
+              <input id="join-name" class="form-control" type="text" placeholder="Dr. Juan Pérez" autocomplete="name" />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="join-user">Nombre de usuario *</label>
+              <input id="join-user" class="form-control" type="text" placeholder="dr_juanperez" autocomplete="username" required />
+            </div>
+            <div class="form-group" style="margin-bottom:24px;">
+              <label class="form-label" for="join-pass">Contraseña *</label>
+              <div class="auth-pass-wrap">
+                <input id="join-pass" class="form-control" type="password"
+                  placeholder="Mínimo 6 caracteres" autocomplete="new-password" required minlength="6" />
+                <button type="button" class="auth-eye-btn" onclick="JoinView.togglePass()" title="Mostrar/ocultar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div id="join-error" class="auth-error" style="display:none;"></div>
+
+            <button type="submit" id="join-btn" class="btn btn-primary btn-full">
+              Unirse a la clínica
+            </button>
+          </form>
+
+          <div class="auth-switch" style="margin-top:16px;">
+            <button type="button" class="auth-switch-link" onclick="Router.navigate('login')">
+              Volver al inicio de sesión
+            </button>
+          </div>
+        </div>
+        <div class="auth-footer">DentalFlow v1.0 · Tu consultorio en la palma de tu mano</div>
+      </div>`;
+
+    document.getElementById('join-code').addEventListener('input', function() {
+      this.value = this.value.toUpperCase();
+    });
+  },
+
+  togglePass() {
+    const input = document.getElementById('join-pass');
+    if (input) input.type = input.type === 'password' ? 'text' : 'password';
+  },
+
+  async submit(e) {
+    e.preventDefault();
+    const code     = document.getElementById('join-code').value.trim().toUpperCase();
+    const username = document.getElementById('join-user').value.trim();
+    const password = document.getElementById('join-pass').value;
+    const name     = document.getElementById('join-name').value.trim();
+    const btn      = document.getElementById('join-btn');
+    const errBox   = document.getElementById('join-error');
+
+    errBox.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = `<div class="loading-spinner" style="width:18px;height:18px;border-width:2px;"></div> Uniéndose...`;
+
+    try {
+      const res = await api.auth.join({ username, password, doctor_name: name || null, invite_code: code });
+      Auth.setToken(res.token);
+      Auth.setUser({ username: res.username, role: res.role, clinic_id: res.clinic_id, doctor_name: name || null });
+      if (window.loadClinicName) await window.loadClinicName();
+      Toast.success(`¡Bienvenido/a a la clínica, ${name || username}!`);
+      window.Router.navigate('appointments');
+    } catch (err) {
+      errBox.textContent   = err.message;
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Unirse a la clínica';
+    }
+  }
+};
+
 window.LoginView = LoginView;
 window.SetupView = SetupView;
 window.ForgotPasswordView = ForgotPasswordView;
 window.ResetPasswordView = ResetPasswordView;
+window.JoinView = JoinView;
