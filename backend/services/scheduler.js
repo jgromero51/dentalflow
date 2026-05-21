@@ -8,7 +8,7 @@
 require('dotenv').config();
 const cron   = require('node-cron');
 const { db } = require('../db/database');
-const { sendTemplate } = require('./whatsapp');
+const { sendTemplate, sendConfirmTemplate } = require('./whatsapp');
 
 const VENTANA_TOLERANCIA = 2; // minutos
 
@@ -65,23 +65,26 @@ async function enviarRecordatorio(cita, tipo) {
   console.log('[Scheduler] Enviando recordatorio ' + tipo + ' -> ' + cita.paciente_nombre + ' (' + cita.fecha_hora_inicio + ')');
 
   try {
-    const d     = new Date(cita.fecha_hora_inicio);
+    const d    = new Date(cita.fecha_hora_inicio);
     const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
     const hora  = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
-    // Obtener nombre de la clínica del usuario dueño de la cita
     const { db: dbInst } = require('../db/database');
     const clinicaSetting = await dbInst.prepare(`SELECT value FROM settings WHERE user_id = ? AND key = 'clinic_name'`).get(cita.user_id);
     const clinica = clinicaSetting?.value || 'nuestra clínica';
 
-    const result = await sendTemplate(cita.paciente_telefono, {
-      nombre:  cita.paciente_nombre,
-      clinica,
-      fecha,
-      hora,
-    });
+    // 24h → recordatorio_cita (recuerda la cita de mañana)
+    // 4h  → confirmacion_cita (confirma la cita de hoy)
+    let result;
+    let templateUsado;
+    if (tipo === '24h') {
+      result = await sendTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, fecha, hora });
+      templateUsado = 'recordatorio_cita';
+    } else {
+      result = await sendConfirmTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, hora });
+      templateUsado = 'confirmacion_cita';
+    }
 
-    // Propagar user_id del appointment al log
     await db.prepare(`
       INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado, error_detalle)
       VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -90,15 +93,15 @@ async function enviarRecordatorio(cita, tipo) {
       cita.patient_id,
       cita.user_id || null,
       'recordatorio_' + tipo,
-      `[template:recordatorio_cita] ${cita.paciente_nombre} | ${clinica} | ${fecha} ${hora}`,
+      `[template:${templateUsado}] ${cita.paciente_nombre} | ${clinica} | ${fecha} ${hora}`,
       result.success ? 1 : 2,
       result.error || null
     );
 
     if (result.success) {
-      console.log('[Scheduler] Recordatorio ' + tipo + ' enviado a ' + cita.paciente_nombre);
+      console.log('[Scheduler] Recordatorio ' + tipo + ' (' + templateUsado + ') enviado a ' + cita.paciente_nombre);
     } else {
-      console.error('[Scheduler] Fallo al enviar recordatorio ' + tipo + ': ' + result.error);
+      console.error('[Scheduler] Fallo recordatorio ' + tipo + ': ' + result.error);
     }
   } catch (err) {
     console.error('[Scheduler] Error al enviar recordatorio ' + tipo + ' para cita #' + cita.id + ':', err.message);

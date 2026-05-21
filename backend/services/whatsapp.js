@@ -94,8 +94,50 @@ async function sendTemplate(telefono, { nombre, clinica, fecha, hora }) {
   }
 }
 
+/**
+ * Envía el template de confirmación de cita (4h antes)
+ * Variables: {{1}}=nombre, {{2}}=clinica, {{3}}=hora
+ */
+async function sendConfirmTemplate(telefono, { nombre, clinica, hora }) {
+  const to = normalizarTelefono(telefono);
+
+  if (DEMO_MODE || !WA_TOKEN || WA_TOKEN === 'EAAxxxxxxxxxx') {
+    console.log(`[WhatsApp Demo] Confirmación a +${to} | ${nombre} | ${clinica} | ${hora}`);
+    return { success: true, demo: true };
+  }
+
+  try {
+    const res = await axios.post(WA_API_BASE, {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: 'confirmacion_cita',
+        language: { code: process.env.WA_TEMPLATE_LANG || 'es_PE' },
+        components: [{
+          type: 'body',
+          parameters: [
+            { type: 'text', text: nombre  },
+            { type: 'text', text: clinica },
+            { type: 'text', text: hora    },
+          ]
+        }]
+      }
+    }, { headers: headers(), timeout: 10000 });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    console.log(`[WhatsApp] Confirmación enviada a +${to} - ID: ${messageId}`);
+    return { success: true, messageId };
+  } catch (err) {
+    const fullError = err.response?.data || err.message;
+    const errorMsg  = err.response?.data?.error?.message || err.message;
+    console.error(`[WhatsApp] Error confirmación a +${to}:`, JSON.stringify(fullError));
+    return { success: false, error: errorMsg };
+  }
+}
+
 async function replyMessage(telefono, mensaje) {
   return sendMessage(telefono, mensaje);
 }
 
-module.exports = { sendMessage, sendTemplate, replyMessage };
+module.exports = { sendMessage, sendTemplate, sendConfirmTemplate, replyMessage };
