@@ -22,6 +22,7 @@ const { startScheduler }     = require('./services/scheduler');
 const adminRouter            = require('./routes/admin');
 const catalogRouter          = require('./routes/catalog');
 const proformasRouter        = require('./routes/proformas');
+const clinicRouter           = require('./routes/clinic');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -72,6 +73,7 @@ app.use('/api/messages',     requireAuth, messagesRouter);
 app.use('/api/odontogram',   requireAuth, odontogramRouter);
 app.use('/api/catalog',      requireAuth, catalogRouter);
 app.use('/api/proformas',    requireAuth, proformasRouter);
+app.use('/api/clinic',       requireAuth, clinicRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

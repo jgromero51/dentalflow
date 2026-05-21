@@ -12,7 +12,7 @@ const bcrypt   = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const { OAuth2Client } = require('google-auth-library');
 const router   = express.Router();
-const { db }         = require('../db/database');
+const { db, knex }   = require('../db/database');
 const { signToken, requireAuth } = require('../middleware/auth');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -81,10 +81,20 @@ router.post('/setup', async (req, res) => {
       ).run(clinic_name.trim());
     }
 
-    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role });
+    const newUserId = result.lastInsertRowid;
+    // Crear clínica para el primer usuario
+    let clinic_id = null;
+    if (isFirstUser) {
+      const clinicName = clinic_name ? clinic_name.trim() : username.trim();
+      const [cid] = await knex('clinics').insert({ name: clinicName, owner_id: newUserId, created_at: new Date(), updated_at: new Date() }).returning('id');
+      clinic_id = typeof cid === 'object' ? cid.id : cid;
+      await knex('users').where('id', newUserId).update({ clinic_id, role: 'owner' });
+    }
+
+    const token = signToken({ id: newUserId, username: username.trim().toLowerCase(), role: isFirstUser ? 'owner' : role, clinic_id, doctor_name: null });
 
     console.log(`[Auth] ✅ Usuario creado: "${username}" (Rol: ${role})`);
-    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role });
+    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role: isFirstUser ? 'owner' : role, clinic_id });
 
   } catch (err) {
     console.error('[Auth] Error en setup/registro:', err.message);
@@ -117,10 +127,10 @@ router.post('/login', async (req, res) => {
     // Actualizar último acceso (sin esperar para no bloquear)
     db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
 
-    const token = signToken({ id: user.id, username: user.username, role: user.role });
+    const token = signToken({ id: user.id, username: user.username, role: user.role, clinic_id: user.clinic_id, doctor_name: user.doctor_name });
 
     console.log(`[Auth] ✅ Login: "${user.username}"`);
-    res.json({ success: true, token, username: user.username, role: user.role });
+    res.json({ success: true, token, username: user.username, role: user.role, clinic_id: user.clinic_id, doctor_name: user.doctor_name });
 
   } catch (err) {
     console.error('[Auth] Error en login:', err.message);
@@ -129,11 +139,38 @@ router.post('/login', async (req, res) => {
 });
 
 // ============================================================
+// POST /api/auth/join — Unirse a una clínica con código de invitación
+// ============================================================
+router.post('/join', async (req, res) => {
+  try {
+    const { username, password, doctor_name, invite_code, email } = req.body;
+    if (!username || !password || !invite_code) {
+      return res.status(400).json({ error: 'Usuario, contraseña y código de invitación son obligatorios.' });
+    }
+    const clinic = await knex('clinics').where('invite_code', invite_code.trim().toUpperCase()).first();
+    if (!clinic) return res.status(400).json({ error: 'Código de invitación inválido o expirado.' });
+
+    const existing = await db.prepare('SELECT id FROM users WHERE username = ?').get(username.trim().toLowerCase());
+    if (existing) return res.status(400).json({ error: 'Ese nombre de usuario ya está en uso.' });
+
+    const hash = await bcrypt.hash(password, 12);
+    const result = await db.prepare(
+      'INSERT INTO users(username, password_hash, role, email, clinic_id, doctor_name) VALUES(?, ?, ?, ?, ?, ?)'
+    ).run(username.trim().toLowerCase(), hash, 'doctor', email || null, clinic.id, doctor_name ? doctor_name.trim() : null);
+
+    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role: 'doctor', clinic_id: clinic.id, doctor_name: doctor_name || null });
+    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role: 'doctor', clinic_id: clinic.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
 // GET /api/auth/me — Verificar token (requiere auth)
 // ============================================================
 router.get('/me', requireAuth, async (req, res) => {
   try {
-    const user = await db.prepare('SELECT id, username, role, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
+    const user = await db.prepare('SELECT id, username, role, clinic_id, doctor_name, created_at, last_login FROM users WHERE id = ?').get(req.user.id);
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
     res.json({ success: true, data: user });
   } catch (err) {

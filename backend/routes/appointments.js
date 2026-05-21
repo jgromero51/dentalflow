@@ -103,6 +103,53 @@ router.get('/upcoming', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/appointments/stats — estadísticas financieras del mes actual y deudores
+router.get('/stats', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const now = new Date();
+    const mesActual = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const mesAnterior = (() => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    })();
+    const hoy = now.toISOString().split('T')[0];
+
+    const [ingresosMes, ingresosMesAnterior, citasMes, deudores, noAsistioMes, totalCitasMesConEstado] = await Promise.all([
+      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
+      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesAnterior),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
+      db.prepare(`
+        SELECT a.id, a.fecha_hora_inicio, a.costo_estimado, a.monto_pagado,
+               (a.costo_estimado - COALESCE(a.monto_pagado,0)) as deuda,
+               p.nombre as paciente_nombre, p.telefono as paciente_telefono, p.id as paciente_id
+        FROM appointments a JOIN patients p ON p.id = a.patient_id
+        WHERE a.user_id=? AND a.costo_estimado > 0
+          AND (a.costo_estimado - COALESCE(a.monto_pagado,0)) > 0
+          AND a.estado NOT IN ('cancelada','no_asistio')
+        ORDER BY deuda DESC LIMIT 20
+      `).all(uid),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado='no_asistio'`).get(uid, mesActual),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado IN ('confirmada','no_asistio')`).get(uid, mesActual),
+    ]);
+
+    const totalDeuda = deudores.reduce((s, d) => s + d.deuda, 0);
+    const tasaNoAsistencia = totalCitasMesConEstado.c > 0
+      ? Math.round((noAsistioMes.c / totalCitasMesConEstado.c) * 100)
+      : 0;
+
+    res.json({
+      ingresosMes: ingresosMes.total,
+      ingresosMesAnterior: ingresosMesAnterior.total,
+      citasMes: citasMes.c,
+      deudores,
+      totalDeuda,
+      tasaNoAsistencia,
+      mesActual,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/appointments/slots/:fecha
 router.get('/slots/:fecha', async (req, res) => {
   try {
