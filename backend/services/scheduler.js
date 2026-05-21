@@ -8,8 +8,7 @@
 require('dotenv').config();
 const cron   = require('node-cron');
 const { db } = require('../db/database');
-const { generateReminderMessage } = require('./ai');
-const { sendMessage }             = require('./whatsapp');
+const { sendTemplate } = require('./whatsapp');
 
 const VENTANA_TOLERANCIA = 2; // minutos
 
@@ -66,8 +65,21 @@ async function enviarRecordatorio(cita, tipo) {
   console.log('[Scheduler] Enviando recordatorio ' + tipo + ' -> ' + cita.paciente_nombre + ' (' + cita.fecha_hora_inicio + ')');
 
   try {
-    const mensaje = await generateReminderMessage(cita, tipo);
-    const result  = await sendMessage(cita.paciente_telefono, mensaje);
+    const d     = new Date(cita.fecha_hora_inicio);
+    const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const hora  = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+    // Obtener nombre de la clínica del usuario dueño de la cita
+    const { db: dbInst } = require('../db/database');
+    const clinicaSetting = await dbInst.prepare(`SELECT value FROM settings WHERE user_id = ? AND key = 'clinic_name'`).get(cita.user_id);
+    const clinica = clinicaSetting?.value || 'nuestra clínica';
+
+    const result = await sendTemplate(cita.paciente_telefono, {
+      nombre:  cita.paciente_nombre,
+      clinica,
+      fecha,
+      hora,
+    });
 
     // Propagar user_id del appointment al log
     await db.prepare(`
@@ -78,7 +90,7 @@ async function enviarRecordatorio(cita, tipo) {
       cita.patient_id,
       cita.user_id || null,
       'recordatorio_' + tipo,
-      mensaje,
+      `[template:recordatorio_cita] ${cita.paciente_nombre} | ${clinica} | ${fecha} ${hora}`,
       result.success ? 1 : 2,
       result.error || null
     );

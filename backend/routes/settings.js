@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
-const { sendMessage } = require('../services/whatsapp');
+const { sendTemplate } = require('../services/whatsapp');
 
 // GET /api/settings
 router.get('/', async (req, res) => {
@@ -55,9 +55,20 @@ router.post('/test-whatsapp', async (req, res) => {
   const { telefono } = req.body;
   if (!telefono) return res.status(400).json({ error: 'Falta el número de teléfono' });
 
-  const mensaje = `✅ *Prueba de WhatsApp — DentalFlow*\n\nSi ves este mensaje, la integración con WhatsApp está funcionando correctamente. 🦷`;
+  // Obtener nombre de clínica del usuario
+  const clinicaSetting = await db.prepare(`SELECT value FROM settings WHERE user_id = ? AND key = 'clinic_name'`).get(req.user.id);
+  const clinica = clinicaSetting?.value || 'DentalFlow';
 
-  const result = await sendMessage(telefono, mensaje);
+  const ahora = new Date();
+  ahora.setDate(ahora.getDate() + 1);
+  const fecha = ahora.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const result = await sendTemplate(telefono, {
+    nombre:  'Paciente de prueba',
+    clinica,
+    fecha,
+    hora:    '10:00',
+  });
 
   if (result.success) {
     res.json({ success: true, demo: result.demo || false });
