@@ -184,9 +184,11 @@ const SettingsView = {
           <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
             Cargá tus tratamientos con precios. La IA los usará para completar proformas por voz automáticamente.
           </p>
-          <button class="btn btn-primary btn-sm" onclick="SettingsView.openAddTreatment()" style="margin-bottom:16px;">
-            + Agregar tratamiento
-          </button>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;">
+            <button class="btn btn-primary btn-sm" onclick="SettingsView.openAddTreatment()">+ Agregar tratamiento</button>
+            <button class="btn btn-secondary btn-sm" onclick="SettingsView.importCatalogFromImage()" style="display:flex;align-items:center;gap:6px;">📷 Importar desde foto</button>
+            <input type="file" id="catalog-img-input" accept="image/*" style="display:none;" onchange="SettingsView._processCatalogImage(this)">
+          </div>
           <div id="catalog-section"></div>
         </div>
       </div>
@@ -425,6 +427,105 @@ const SettingsView = {
       this.renderCatalog();
     } catch (err) {
       Toast.error('Error: ' + err.message);
+    }
+  },
+
+  importCatalogFromImage() {
+    document.getElementById('catalog-img-input')?.click();
+  },
+
+  async _processCatalogImage(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const btn = document.querySelector('[onclick="SettingsView.importCatalogFromImage()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Analizando...'; }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64   = reader.result.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
+
+      try {
+        const res   = await api.catalog.proformaImage(base64, mimeType);
+        const items = res.data || [];
+
+        if (items.length === 0) {
+          Toast.warning('No se detectaron tratamientos. Intentá con una foto más clara.');
+          return;
+        }
+
+        // Modal de confirmación con los ítems detectados
+        this._showImportConfirmModal(items);
+      } catch (err) {
+        Toast.error('Error al analizar la imagen: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '📷 Importar desde foto'; }
+        input.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  },
+
+  _showImportConfirmModal(items) {
+    const existing = document.getElementById('import-confirm-modal');
+    if (existing) existing.remove();
+
+    const rows = items.map((item, i) => `
+      <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;margin-bottom:8px;">
+        <input type="checkbox" id="imp-chk-${i}" checked style="width:16px;height:16px;cursor:pointer;" />
+        <input type="text" id="imp-name-${i}" value="${(item.nombre || '').replace(/"/g,'&quot;')}"
+          style="background:var(--surface);border:1px solid var(--border-color);border-radius:6px;padding:6px 8px;color:var(--text-primary);font-size:13px;width:100%;box-sizing:border-box;" />
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:12px;color:var(--text-muted);">S/</span>
+          <input type="number" id="imp-price-${i}" value="${parseFloat(item.precio)||0}" min="0" step="0.01"
+            style="background:var(--surface);border:1px solid var(--border-color);border-radius:6px;padding:6px 8px;color:var(--text-primary);font-size:13px;width:76px;box-sizing:border-box;" />
+        </div>
+      </div>`).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'import-confirm-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-surface);border-radius:16px;padding:24px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <h3 style="margin:0;font-size:18px;">📋 Tratamientos detectados</h3>
+          <button onclick="document.getElementById('import-confirm-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">×</button>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 16px;">Revisá y editá antes de guardar. Desmarcá los que no quieras importar.</p>
+        <div style="margin-bottom:16px;">
+          <div style="display:grid;grid-template-columns:auto 1fr auto;gap:8px;margin-bottom:8px;">
+            <span></span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:600;">TRATAMIENTO</span>
+            <span style="font-size:11px;color:var(--text-muted);font-weight:600;">PRECIO</span>
+          </div>
+          ${rows}
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-confirm-modal').remove()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="SettingsView._saveImportedItems(${items.length})">💾 Guardar seleccionados</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  },
+
+  async _saveImportedItems(count) {
+    const toSave = [];
+    for (let i = 0; i < count; i++) {
+      const chk   = document.getElementById(`imp-chk-${i}`);
+      const name  = document.getElementById(`imp-name-${i}`)?.value?.trim();
+      const price = parseFloat(document.getElementById(`imp-price-${i}`)?.value) || 0;
+      if (chk?.checked && name) toSave.push({ nombre: name, precio: price, categoria: 'General' });
+    }
+    if (toSave.length === 0) { Toast.warning('Seleccioná al menos un tratamiento.'); return; }
+
+    try {
+      await Promise.all(toSave.map(t => api.catalog.create(t)));
+      document.getElementById('import-confirm-modal')?.remove();
+      Toast.success(`✅ ${toSave.length} tratamiento(s) importados al catálogo.`);
+      this.renderCatalog();
+    } catch (err) {
+      Toast.error('Error al guardar: ' + err.message);
     }
   },
 
