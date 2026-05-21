@@ -172,6 +172,7 @@ const PatientDetailView = {
     });
 
     const deuda = totalCosto - totalPagado;
+    const metodoLabel = { efectivo: '💵 Efectivo', tarjeta: '💳 Tarjeta', transferencia: '🏦 Transferencia', yape: '📱 Yape', plin: '📱 Plin' };
 
     let html = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
@@ -179,47 +180,142 @@ const PatientDetailView = {
         <button class="btn btn-primary btn-sm" onclick="PatientDetailView.openProforma()">📄 Nueva Proforma</button>
       </div>
       <div id="proforma-history" style="margin-bottom:20px;"></div>
-      <div style="display:flex; gap:16px; margin-bottom:24px;">
-        <div class="card" style="flex:1; text-align:center;">
-          <div style="font-size:12px; color:var(--text-secondary);">Total Facturado</div>
-          <div style="font-size:20px; font-weight:600; color:var(--text-primary);">$${totalCosto.toFixed(2)}</div>
+      <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+        <div class="card" style="flex:1; min-width:90px; text-align:center; padding:12px 8px;">
+          <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">Total Facturado</div>
+          <div style="font-size:18px; font-weight:700; color:var(--text-primary);">S/ ${totalCosto.toFixed(2)}</div>
         </div>
-        <div class="card" style="flex:1; text-align:center;">
-          <div style="font-size:12px; color:var(--text-secondary);">Total Pagado</div>
-          <div style="font-size:20px; font-weight:600; color:#2ea043;">$${totalPagado.toFixed(2)}</div>
+        <div class="card" style="flex:1; min-width:90px; text-align:center; padding:12px 8px;">
+          <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">Total Pagado</div>
+          <div style="font-size:18px; font-weight:700; color:#2ea043;">S/ ${totalPagado.toFixed(2)}</div>
         </div>
-        <div class="card" style="flex:1; text-align:center; border: 1px solid ${deuda > 0 ? '#da3633' : 'transparent'};">
-          <div style="font-size:12px; color:var(--text-secondary);">Saldo Pendiente</div>
-          <div style="font-size:20px; font-weight:600; color:${deuda > 0 ? '#da3633' : 'var(--text-primary)'};">$${deuda.toFixed(2)}</div>
+        <div class="card" style="flex:1; min-width:90px; text-align:center; padding:12px 8px; ${deuda > 0 ? 'border:1px solid #da3633;' : ''}">
+          <div style="font-size:11px; color:var(--text-secondary); margin-bottom:4px;">Saldo Pendiente</div>
+          <div style="font-size:18px; font-weight:700; color:${deuda > 0 ? '#da3633' : '#2ea043'};">S/ ${deuda.toFixed(2)}</div>
         </div>
       </div>
-      <h3 style="margin:0 0 12px 0; font-size:16px;">Historial de Cargos por Cita</h3>
+      <h3 style="margin:0 0 12px 0; font-size:16px;">Historial de Pagos por Cita</h3>
     `;
 
     if (appts.length === 0) {
-      html += '<div class="empty-state"><div class="empty-desc">Sin citas para facturar</div></div>';
+      html += '<div class="empty-state"><div class="empty-desc">Sin citas registradas</div></div>';
     } else {
       html += appts.map(a => {
         const d = new Date(a.fecha_hora_inicio);
-        const fecha = d.toLocaleDateString('es-AR', { day:'2-digit', month:'short' });
+        const fecha = d.toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
         const costo = a.costo_estimado || 0;
         const pagado = a.monto_pagado || 0;
         const saldo = costo - pagado;
+        const pagoCompleto = costo > 0 && saldo <= 0;
+        const sinCosto = costo === 0;
+
         return `
-        <div class="card" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="font-weight:600;font-size:14px;">Cita ${fecha}</div>
-            <div style="font-size:12px;color:var(--text-secondary);">${a.descripcion || 'Sin descripción'}</div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:14px; font-weight:600;">Costo: $${costo.toFixed(2)}</div>
-            ${saldo > 0 ? `<div style="font-size:12px; color:#da3633;">Falta: $${saldo.toFixed(2)}</div>` : `<div style="font-size:12px; color:#2ea043;">Pagado</div>`}
+        <div class="card" style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:14px;">${fecha}</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${a.descripcion || 'Sin descripción'}</div>
+              ${a.metodo_pago ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${metodoLabel[a.metodo_pago] || a.metodo_pago}</div>` : ''}
+            </div>
+            <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+              ${sinCosto
+                ? `<div style="font-size:12px;color:var(--text-muted);">Sin costo</div>`
+                : `<div style="font-size:14px;font-weight:600;">S/ ${costo.toFixed(2)}</div>
+                   ${pagoCompleto
+                     ? `<div style="font-size:11px;color:#2ea043;font-weight:600;">✅ Pagado</div>`
+                     : `<div style="font-size:11px;color:#da3633;">Pendiente: S/ ${saldo.toFixed(2)}</div>`
+                   }`
+              }
+              <button class="btn btn-sm" style="font-size:11px;padding:4px 10px;margin-top:2px;" onclick="PatientDetailView.openPaymentModal(${a.id})">
+                ${sinCosto ? '💰 Agregar costo' : pagoCompleto ? '✏️ Editar' : '💳 Registrar pago'}
+              </button>
+            </div>
           </div>
         </div>`;
       }).join('');
     }
 
     return html;
+  },
+
+  openPaymentModal(apptId) {
+    const appt = (this.patient.appointments || []).find(a => a.id === apptId);
+    if (!appt) return;
+
+    const costo = appt.costo_estimado || 0;
+    const pagado = appt.monto_pagado || 0;
+    const d = new Date(appt.fecha_hora_inicio);
+    const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const metodoOpts = [
+      ['efectivo', '💵 Efectivo'],
+      ['tarjeta', '💳 Tarjeta'],
+      ['transferencia', '🏦 Transferencia'],
+      ['yape', '📱 Yape'],
+      ['plin', '📱 Plin'],
+    ].map(([val, label]) =>
+      `<option value="${val}" ${appt.metodo_pago === val ? 'selected' : ''}>${label}</option>`
+    ).join('');
+
+    document.getElementById('modal-title').textContent = '💳 Registrar Pago';
+    document.getElementById('modal-body').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="font-size:13px;color:var(--text-secondary);padding:10px 12px;background:var(--bg-elevated);border-radius:8px;">
+          <div style="font-weight:600;color:var(--text-primary);margin-bottom:2px;">${fecha}</div>
+          ${appt.descripcion ? `<div>${appt.descripcion}</div>` : ''}
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Costo total (S/)</label>
+          <input id="pay-costo" type="number" class="form-control" min="0" step="0.01" value="${costo > 0 ? costo.toFixed(2) : ''}" placeholder="0.00" />
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Monto pagado (S/)</label>
+          <input id="pay-monto" type="number" class="form-control" min="0" step="0.01" value="${pagado > 0 ? pagado.toFixed(2) : ''}" placeholder="0.00" />
+          <div class="form-hint">Total recibido hasta ahora. Puede ser parcial.</div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Método de pago</label>
+          <select id="pay-metodo" class="form-control">${metodoOpts}</select>
+        </div>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="PatientDetailView.savePayment(${apptId})">💾 Guardar</button>
+        </div>
+      </div>
+    `;
+    openModal();
+  },
+
+  async savePayment(apptId) {
+    const costo  = parseFloat(document.getElementById('pay-costo').value) || 0;
+    const monto  = parseFloat(document.getElementById('pay-monto').value) || 0;
+    const metodo = document.getElementById('pay-metodo').value;
+
+    if (monto > costo && costo > 0) {
+      Toast.warning('El monto pagado no puede superar el costo total.');
+      return;
+    }
+
+    try {
+      await api.appointments.update(apptId, { costo_estimado: costo, monto_pagado: monto, metodo_pago: metodo });
+
+      const appt = (this.patient.appointments || []).find(a => a.id === apptId);
+      if (appt) {
+        appt.costo_estimado = costo;
+        appt.monto_pagado   = monto;
+        appt.metodo_pago    = metodo;
+      }
+
+      closeModal();
+      Toast.success('Pago registrado.');
+      this.updateView();
+      setTimeout(() => this.loadProformaHistory(), 0);
+    } catch (err) {
+      Toast.error('Error al guardar: ' + err.message);
+    }
   },
 
   async saveMedicalData() {

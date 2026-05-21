@@ -259,7 +259,7 @@ router.post('/', async (req, res) => {
 // PUT /api/appointments/:id
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { estado, fecha_hora_inicio, duracion_minutos, descripcion, costo_estimado, monto_pagado } = req.body;
+  const { estado, fecha_hora_inicio, duracion_minutos, descripcion, costo_estimado, monto_pagado, metodo_pago } = req.body;
   const uid = req.user.id;
 
   try {
@@ -274,7 +274,7 @@ router.put('/:id', async (req, res) => {
     await db.prepare(`
       UPDATE appointments
       SET estado = ?, fecha_hora_inicio = ?, duracion_minutos = ?, descripcion = ?,
-          costo_estimado = ?, monto_pagado = ?, updated_at = CURRENT_TIMESTAMP
+          costo_estimado = ?, monto_pagado = ?, metodo_pago = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `).run(
       estado || appt.estado,
@@ -283,6 +283,7 @@ router.put('/:id', async (req, res) => {
       descripcion !== undefined ? descripcion : appt.descripcion,
       costo_estimado !== undefined ? costo_estimado : appt.costo_estimado,
       monto_pagado !== undefined ? monto_pagado : appt.monto_pagado,
+      metodo_pago !== undefined ? metodo_pago : appt.metodo_pago,
       id, uid
     );
 
