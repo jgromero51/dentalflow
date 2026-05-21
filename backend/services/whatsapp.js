@@ -74,10 +74,10 @@ async function sendTemplate(telefono, { nombre, clinica, fecha, hora }) {
         components: [{
           type: 'body',
           parameters: [
-            { type: 'text', text: nombre  },
-            { type: 'text', text: clinica },
-            { type: 'text', text: fecha   },
-            { type: 'text', text: hora    },
+            { type: 'text', parameter_name: 'nombre',  text: nombre  },
+            { type: 'text', parameter_name: 'clinica', text: clinica },
+            { type: 'text', parameter_name: 'fecha',   text: fecha   },
+            { type: 'text', parameter_name: 'hora',    text: hora    },
           ]
         }]
       }
