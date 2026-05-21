@@ -72,9 +72,12 @@ const PatientDetailView = {
       </div>
     `;
 
-    // Si estamos en clínica, renderizar el componente SVG del odontograma
-    if (this.currentTab === 'clinica' && window.OdontogramComponent) {
-      OdontogramComponent.render(document.getElementById('odontogram-container'), this.odontogramData, this.patient.id);
+    // Si estamos en clínica, renderizar odontograma y cargar tratamientos
+    if (this.currentTab === 'clinica') {
+      if (window.OdontogramComponent) {
+        OdontogramComponent.render(document.getElementById('odontogram-container'), this.odontogramData, this.patient.id);
+      }
+      this.loadTreatments();
     }
   },
 
@@ -150,6 +153,13 @@ const PatientDetailView = {
           <style>@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }</style>
         </div>
       </div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0; font-size:16px;">Historial de Tratamientos</h3>
+          <button class="btn btn-primary btn-sm" onclick="PatientDetailView.openAddTreatmentModal()">+ Agregar</button>
+        </div>
+        <div id="treatments-list"><div style="text-align:center;padding:12px;"><div class="loading-spinner" style="margin:0 auto;width:18px;height:18px;border-width:2px;"></div></div></div>
+      </div>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
           <h3 style="margin:0; font-size:16px;">Odontograma</h3>
@@ -159,6 +169,123 @@ const PatientDetailView = {
         </div>
       </div>
     `;
+  },
+
+  async loadTreatments() {
+    const el = document.getElementById('treatments-list');
+    if (!el) return;
+    try {
+      const res  = await api.patients.getTreatments(this.patient.id);
+      const rows = res.data || [];
+      if (rows.length === 0) {
+        el.innerHTML = `<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:12px;">Sin tratamientos registrados.</div>`;
+        return;
+      }
+      el.innerHTML = rows.map(t => {
+        const fecha = new Date(t.fecha + 'T12:00:00').toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
+        return `
+          <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border-color);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">${t.nombre}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${fecha} · ${t.categoria || 'General'}</div>
+              ${t.notas ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:3px;">${t.notas}</div>` : ''}
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              ${t.precio > 0 ? `<span style="font-size:13px;font-weight:600;color:var(--text-primary);">S/ ${parseFloat(t.precio).toFixed(2)}</span>` : ''}
+              <button onclick="PatientDetailView.deleteTreatment(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;padding:0;line-height:1;" title="Eliminar">✕</button>
+            </div>
+          </div>`;
+      }).join('');
+    } catch (err) {
+      el.innerHTML = `<div style="font-size:13px;color:var(--danger);">Error al cargar tratamientos.</div>`;
+    }
+  },
+
+  async openAddTreatmentModal() {
+    // Cargar catálogo para autocomplete
+    let catalogItems = [];
+    try {
+      const res = await api.catalog.list();
+      catalogItems = res.data || [];
+    } catch (_) {}
+
+    const today = new Date().toISOString().split('T')[0];
+    const opts = catalogItems.map(c =>
+      `<option value="${c.nombre}" data-precio="${c.precio}" data-categoria="${c.categoria}">`
+    ).join('');
+
+    document.getElementById('modal-title').textContent = '🦷 Agregar Tratamiento';
+    document.getElementById('modal-body').innerHTML = `
+      <datalist id="catalog-list">${opts}</datalist>
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Tratamiento *</label>
+          <input id="tr-nombre" type="text" class="form-control" list="catalog-list" placeholder="Ej: Extracción, Limpieza..."
+            oninput="PatientDetailView._onTreatmentInput(this)" />
+        </div>
+        <div style="display:flex;gap:10px;">
+          <div class="form-group" style="margin:0;flex:1;">
+            <label class="form-label">Precio (S/)</label>
+            <input id="tr-precio" type="number" class="form-control" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="form-group" style="margin:0;flex:1;">
+            <label class="form-label">Fecha *</label>
+            <input id="tr-fecha" type="date" class="form-control" value="${today}" />
+          </div>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Notas (opcional)</label>
+          <input id="tr-notas" type="text" class="form-control" placeholder="Observaciones..." />
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="PatientDetailView.saveTreatment()">💾 Guardar</button>
+        </div>
+      </div>
+    `;
+    openModal();
+  },
+
+  _onTreatmentInput(input) {
+    const list = document.getElementById('catalog-list');
+    const opt  = Array.from(list.options).find(o => o.value === input.value);
+    if (opt) {
+      document.getElementById('tr-precio').value = opt.dataset.precio || '';
+    }
+  },
+
+  async saveTreatment() {
+    const nombre = document.getElementById('tr-nombre').value.trim();
+    const precio = parseFloat(document.getElementById('tr-precio').value) || 0;
+    const fecha  = document.getElementById('tr-fecha').value;
+    const notas  = document.getElementById('tr-notas').value.trim();
+
+    if (!nombre) { Toast.warning('El nombre del tratamiento es requerido.'); return; }
+    if (!fecha)  { Toast.warning('La fecha es requerida.'); return; }
+
+    // Buscar categoría del catálogo si coincide
+    const opt = document.querySelector(`#catalog-list option[value="${nombre}"]`);
+    const categoria = opt?.dataset.categoria || 'General';
+
+    try {
+      await api.patients.addTreatment(this.patient.id, { nombre, precio, fecha, notas, categoria });
+      closeModal();
+      Toast.success('Tratamiento registrado.');
+      this.loadTreatments();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async deleteTreatment(tid) {
+    if (!confirm('¿Eliminar este tratamiento?')) return;
+    try {
+      await api.patients.deleteTreatment(this.patient.id, tid);
+      Toast.success('Eliminado.');
+      this.loadTreatments();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
   },
 
   renderFinanzas() {

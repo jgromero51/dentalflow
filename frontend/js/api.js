@@ -130,6 +130,9 @@ const remoteApi = {
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
     getSummary: (id) => remoteApi.request('GET', `/patients/${id}/ai-summary`),
     voiceDictation: (audioBase64, ext) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64, ext }),
+    getTreatments:    (id)       => remoteApi.request('GET',    `/patients/${id}/treatments`),
+    addTreatment:     (id, data) => remoteApi.request('POST',   `/patients/${id}/treatments`, data),
+    deleteTreatment:  (id, tid)  => remoteApi.request('DELETE', `/patients/${id}/treatments/${tid}`),
   },
 
   settings: {

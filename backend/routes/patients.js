@@ -167,6 +167,48 @@ router.post('/voice-dictation', async (req, res) => {
   }
 });
 
+// GET /api/patients/:id/treatments
+router.get('/:id/treatments', async (req, res) => {
+  try {
+    const patient = await db.prepare('SELECT id FROM patients WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
+    const rows = await db.prepare(
+      `SELECT * FROM patient_treatments WHERE patient_id = ? AND user_id = ? ORDER BY fecha DESC, created_at DESC`
+    ).all(req.params.id, req.user.id);
+    res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/patients/:id/treatments
+router.post('/:id/treatments', async (req, res) => {
+  try {
+    const patient = await db.prepare('SELECT id FROM patients WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
+    const { nombre, categoria, precio, notas, fecha, appointment_id } = req.body;
+    if (!nombre || !fecha) return res.status(400).json({ error: 'Nombre y fecha son requeridos' });
+    const result = await db.prepare(
+      `INSERT INTO patient_treatments (patient_id, appointment_id, user_id, nombre, categoria, precio, notas, fecha)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(req.params.id, appointment_id || null, req.user.id, nombre.trim(), categoria || 'General', parseFloat(precio) || 0, notas || null, fecha);
+    const row = await db.prepare('SELECT * FROM patient_treatments WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json({ data: row });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/patients/:id/treatments/:tid
+router.delete('/:id/treatments/:tid', async (req, res) => {
+  try {
+    await db.prepare('DELETE FROM patient_treatments WHERE id = ? AND user_id = ?').run(req.params.tid, req.user.id);
+    res.json({ message: 'Tratamiento eliminado' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/patients/:id
 router.delete('/:id', async (req, res) => {
   try {
