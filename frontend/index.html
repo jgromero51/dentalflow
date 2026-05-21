@@ -84,6 +84,13 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
         </button>
+        <!-- Búsqueda global -->
+        <button class="nav-btn" id="nav-search" title="Buscar paciente (Ctrl+K)" onclick="GlobalSearch.open()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
+
         <!-- Ajustes con dropdown -->
         <div class="nav-dropdown" id="nav-dropdown-settings">
           <button class="nav-btn" id="nav-settings" title="Ajustes"
@@ -223,6 +230,24 @@
   </div>
 
   <!-- ============================================================
+       BÚSQUEDA GLOBAL
+  ============================================================ -->
+  <div id="search-overlay" style="display:none;" onclick="if(event.target===this)GlobalSearch.close()">
+    <div class="search-box">
+      <div class="search-input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon-svg">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="search-input" class="search-input" type="text"
+               placeholder="Buscar paciente por nombre o teléfono..."
+               oninput="GlobalSearch.onInput(this.value)" autocomplete="off" />
+        <button class="search-close-btn" onclick="GlobalSearch.close()">ESC</button>
+      </div>
+      <div id="search-results"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        TOAST / NOTIFICACIONES
   ============================================================ -->
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
@@ -255,6 +280,7 @@
   <script src="/js/views/settings.js"></script>
 
   <script src="/js/views/newPatientWizard.js"></script>
+  <script src="/js/views/globalSearch.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

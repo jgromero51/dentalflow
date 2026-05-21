@@ -118,7 +118,8 @@ const remoteApi = {
     create:       (data)          => remoteApi.request('POST', '/appointments', data),
     update:       (id, data)      => remoteApi.request('PUT', `/appointments/${id}`, data),
     delete:       (id)            => remoteApi.request('DELETE', `/appointments/${id}`),
-    updateStatus: (id, estado)    => remoteApi.request('PUT', `/appointments/${id}`, { estado }),
+    updateStatus:       (id, estado) => remoteApi.request('PUT', `/appointments/${id}`, { estado }),
+    sendConfirmation:   (id)         => remoteApi.request('POST', `/appointments/${id}/send-confirmation`),
   },
 
   patients: {

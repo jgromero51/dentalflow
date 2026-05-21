@@ -5,6 +5,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db, toLocalISO } = require('../db/database');
+const { sendTemplate }   = require('../services/whatsapp');
 
 function calcularFin(inicioISO, duracionMinutos) {
   const inicio = new Date(inicioISO);
@@ -301,6 +302,47 @@ router.delete('/:id', async (req, res) => {
     if (!appt) return res.status(404).json({ error: 'Cita no encontrada' });
     await db.prepare('DELETE FROM appointments WHERE id = ? AND user_id = ?').run(req.params.id, req.user.id);
     res.json({ message: 'Cita eliminada' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/appointments/:id/send-confirmation — Envía solicitud de confirmación por WhatsApp
+router.post('/:id/send-confirmation', async (req, res) => {
+  try {
+    const uid = req.user.id;
+    const appt = await db.prepare(`
+      SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono, p.id as patient_id_val
+      FROM appointments a JOIN patients p ON p.id = a.patient_id
+      WHERE a.id = ? AND a.user_id = ?
+    `).get(req.params.id, uid);
+
+    if (!appt) return res.status(404).json({ error: 'Cita no encontrada' });
+
+    const clinicaSetting = await db.prepare(`SELECT value FROM settings WHERE user_id=? AND key='clinic_name'`).get(uid);
+    const clinica = clinicaSetting?.value || 'nuestra clínica';
+
+    const d    = new Date(appt.fecha_hora_inicio);
+    const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const hora  = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+    const result = await sendTemplate(appt.paciente_telefono, {
+      nombre: appt.paciente_nombre,
+      clinica,
+      fecha,
+      hora,
+    });
+
+    await db.prepare(`
+      INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado, error_detalle)
+      VALUES (?, ?, ?, 'solicitud_confirmacion', ?, ?, ?)
+    `).run(
+      appt.id, appt.patient_id, uid,
+      `[solicitud_confirmacion] ${appt.paciente_nombre} | ${clinica} | ${fecha} ${hora}`,
+      result.success ? 1 : 2,
+      result.error || null
+    );
+
+    if (result.success) res.json({ success: true, demo: result.demo || false });
+    else res.status(500).json({ success: false, error: result.error });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

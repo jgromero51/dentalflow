@@ -91,6 +91,8 @@ const Router = {
     if (fab) fab.style.display = (isAuthView || routeKey === 'settings' || routeKey === 'messages') ? 'none' : 'flex';
     if (fab && FabDial) FabDial.close();
     if (nav) nav.style.display = isAuthView ? 'none' : 'flex';
+    const searchBtn = document.getElementById('nav-search');
+    if (searchBtn) searchBtn.style.display = isAuthView ? 'none' : '';
 
     // Cerrar dropdown de ajustes si estaba abierto
     if (window.NavDropdown) NavDropdown.close();

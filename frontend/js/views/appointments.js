@@ -150,6 +150,7 @@ const AppointmentsView = {
               <div class="appt-patient">${a.paciente_nombre}</div>
               ${a.descripcion ? `<div class="appt-treatment">🦷 ${a.descripcion}</div>` : ''}
               <div class="appt-phone">${a.paciente_telefono}</div>
+              ${(a.costo_estimado > 0 && (a.costo_estimado - (a.monto_pagado||0)) > 0 && a.estado !== 'cancelada' && a.estado !== 'no_asistio') ? `<div class="appt-debt-badge">⚠ Debe $${new Intl.NumberFormat('es-ES',{minimumFractionDigits:2}).format(a.costo_estimado-(a.monto_pagado||0))}</div>` : ''}
             </div>
             <div>
               <span class="badge badge-${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
@@ -159,6 +160,7 @@ const AppointmentsView = {
             ${a.estado === 'pendiente' ? `
               <button class="btn btn-success btn-sm" onclick="AppointmentsView.updateStatus(${a.id},'confirmada')">✓ Confirmar</button>
               <button class="btn btn-danger  btn-sm" onclick="AppointmentsView.updateStatus(${a.id},'cancelada')">✕ Cancelar</button>
+              <button class="btn btn-ghost btn-sm" onclick="AppointmentsView.sendConfirmation(${a.id},this)" title="Pedir confirmación por WhatsApp">📲 Pedir</button>
             ` : ''}
             ${a.estado !== 'no_asistio' && a.estado !== 'cancelada' ? `
               <button class="btn btn-ghost btn-sm" onclick="AppointmentsView.updateStatus(${a.id},'no_asistio')">No asistió</button>
@@ -201,6 +203,25 @@ const AppointmentsView = {
   whatsappPatient(telefono) {
     const tel = telefono.replace(/\D/g, '');
     window.open(`https://wa.me/${tel}`, '_blank');
+  },
+
+  async sendConfirmation(id, btn) {
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳';
+    try {
+      const res = await api.appointments.sendConfirmation(id);
+      if (res.success) {
+        btn.textContent = '✅ Enviado';
+        Toast.success(res.demo ? 'Simulado (modo demo)' : 'Solicitud enviada por WhatsApp');
+      } else {
+        throw new Error(res.error || 'Error');
+      }
+    } catch (err) {
+      btn.textContent = orig;
+      btn.disabled = false;
+      Toast.error('Error al enviar: ' + err.message);
+    }
   },
 };
 window.AppointmentsView = AppointmentsView;
