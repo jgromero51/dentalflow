@@ -60,6 +60,12 @@ router.post('/', async (req, res) => {
 
       if (!patient) {
         console.log(`[Webhook] Paciente no registrado: ${telefonoFormateado}`);
+        // Responder con mensaje de bienvenida del primer usuario admin
+        const adminUser = await db.prepare(`SELECT id FROM users ORDER BY id ASC LIMIT 1`).get();
+        if (adminUser) {
+          const welcomeMsg = await buildWelcomeMessage(adminUser.id);
+          await sendMessage(telefonoFormateado, welcomeMsg);
+        }
         continue;
       }
 
@@ -92,9 +98,11 @@ router.post('/', async (req, res) => {
         VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
       `).run(appt?.id || null, patient.id, userId, text);
 
-      // Solo procesar IA si hay cita pendiente
+      // Sin cita pendiente → responder con mensaje de bienvenida
       if (!appt) {
-        console.log(`[Webhook] Mensaje guardado (sin cita pendiente) de ${patient.nombre}`);
+        console.log(`[Webhook] Sin cita pendiente para ${patient.nombre} — enviando bienvenida`);
+        const welcomeMsg = await buildWelcomeMessage(userId);
+        await sendMessage(telefonoFormateado, welcomeMsg);
         continue;
       }
 
@@ -127,6 +135,26 @@ router.post('/', async (req, res) => {
     console.error('[Webhook] Error procesando mensaje:', err.message);
   }
 });
+
+async function buildWelcomeMessage(userId) {
+  try {
+    const settings    = await getSettings(userId);
+    const clinicName  = settings.clinic_name  || 'la clínica';
+    const clinicHours = settings.clinic_hours || '';
+    let msg = settings.clinic_welcome_msg || '';
+
+    if (!msg) {
+      msg = `Hola 👋 Gracias por escribirnos a *${clinicName}*.${clinicHours ? '\n🕐 Horario: ' + clinicHours : ''}\n\nSi tienes una cita programada, responde *SÍ* para confirmar o *NO* para cancelar. ¡Te atendemos pronto!`;
+    } else {
+      msg = msg
+        .replace(/\{clinic_name\}/g, clinicName)
+        .replace(/\{clinic_hours\}/g, clinicHours);
+    }
+    return msg;
+  } catch (err) {
+    return 'Hola 👋 Gracias por escribirnos. En breve te atenderemos.';
+  }
+}
 
 async function notificarDoctor(appt, patient, accion) {
   try {
