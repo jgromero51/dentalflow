@@ -195,7 +195,7 @@ a { color: var(--primary); text-decoration: none; }
 .appt-row { display: flex; align-items: flex-start; gap: 14px; }
 .appt-time-col { min-width: 72px; }
 .appt-info-col { flex: 1; min-width: 0; }
-.appt-actions { display: flex; gap: 8px; margin-top: 12px; }
+.appt-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 /* ============================================================
    BADGES / ESTADO
