@@ -70,7 +70,7 @@ async function sendTemplate(telefono, { nombre, clinica, fecha, hora }) {
       type: 'template',
       template: {
         name: 'recordatorio_cita',
-        language: { code: 'es_PE' },
+        language: { code: process.env.WA_TEMPLATE_LANG || 'es_PE' },
         components: [{
           type: 'body',
           parameters: [
@@ -87,8 +87,9 @@ async function sendTemplate(telefono, { nombre, clinica, fecha, hora }) {
     console.log(`[WhatsApp] Template enviado a +${to} - ID: ${messageId}`);
     return { success: true, messageId };
   } catch (err) {
-    const errorMsg = err.response?.data?.error?.message || err.message;
-    console.error(`[WhatsApp] Error template a +${to}: ${errorMsg}`);
+    const fullError = err.response?.data || err.message;
+    const errorMsg  = err.response?.data?.error?.message || err.message;
+    console.error(`[WhatsApp] Error template a +${to}:`, JSON.stringify(fullError));
     return { success: false, error: errorMsg };
   }
 }
