@@ -103,24 +103,47 @@ const SettingsView = {
         </div>
       </div>
 
-      <!-- Sección: Recordatorios -->
+      <!-- Sección: WhatsApp con Twilio -->
       <div class="settings-section">
         <div class="settings-section-label">
           <span class="settings-section-icon">💬</span>
-          Recordatorios Automáticos
+          WhatsApp Automático (Twilio)
         </div>
         <div class="settings-card">
+          <div class="form-hint" style="margin-bottom:14px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--primary);">
+            Necesitás una cuenta en <strong>twilio.com</strong> con un número WhatsApp habilitado.
+            Cada doctor configura sus propias credenciales.
+          </div>
           <div class="form-group">
-            <label class="form-label" for="s-doctor-phone">Tu número de WhatsApp (para notificaciones)</label>
+            <label class="form-label" for="s-twilio-sid">Account SID</label>
+            <input id="s-twilio-sid" class="form-control" type="text"
+              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value="${this._esc(s.twilio_account_sid)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-twilio-token">Auth Token</label>
+            <input id="s-twilio-token" class="form-control" type="password"
+              placeholder="••••••••••••••••••••••••••••••••"
+              value="${this._esc(s.twilio_auth_token)}" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-twilio-from">Tu número WhatsApp de Twilio</label>
             <div style="display:flex;gap:8px;align-items:center;">
-              <input id="s-doctor-phone" class="form-control" type="tel"
-                placeholder="+5491198765432"
-                value="${this._esc(s.doctor_phone)}" style="flex:1;" />
+              <input id="s-twilio-from" class="form-control" type="tel"
+                placeholder="+14155238886"
+                value="${this._esc(s.twilio_from_number)}" style="flex:1;" />
               <button type="button" class="btn btn-ghost" style="white-space:nowrap;flex-shrink:0;" onclick="SettingsView._testWhatsApp()">
                 📱 Probar
               </button>
             </div>
-            <div class="form-hint">Cuando un paciente confirme o cancele su cita, recibirás un mensaje en este número.</div>
+            <div class="form-hint">Guardá primero, luego probá. El mensaje de prueba se enviará a tu número de doctor.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="s-doctor-phone">Tu número personal (recibir notificaciones)</label>
+            <input id="s-doctor-phone" class="form-control" type="tel"
+              placeholder="+5491198765432"
+              value="${this._esc(s.doctor_phone)}" />
+            <div class="form-hint">A este número te llegará el mensaje de prueba y notificaciones de cancelaciones.</div>
           </div>
           <div class="settings-toggle-row" id="toggle-24h" onclick="SettingsView._toggle('reminder_24h_active','toggle-24h')">
             <div class="settings-toggle-info">
@@ -171,6 +194,23 @@ const SettingsView = {
         Guardar Cambios
       </button>
 
+      <!-- Sección: Catálogo de Tratamientos -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">🦷</span>
+          Catálogo de Tratamientos
+        </div>
+        <div class="settings-card">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+            Cargá tus tratamientos con precios. La IA los usará para completar proformas por voz automáticamente.
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="SettingsView.openAddTreatment()" style="margin-bottom:16px;">
+            + Agregar tratamiento
+          </button>
+          <div id="catalog-section"></div>
+        </div>
+      </div>
+
       <!-- Sección: Cuenta y Seguridad -->
       <div class="settings-section">
         <div class="settings-section-label">
@@ -208,6 +248,18 @@ const SettingsView = {
         </div>
       </div>
 
+      <!-- Sección: Equipo (solo owner) -->
+      ${(Auth.getUser()?.role === 'owner') ? `
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">👥</span>
+          Equipo de la Clínica
+        </div>
+        <div class="settings-card" id="team-section">
+          <div class="loading-spinner" style="margin:20px auto;"></div>
+        </div>
+      </div>` : ''}
+
       <!-- Cerrar sesión -->
       <button class="btn btn-danger btn-full" onclick="logout()" style="margin-bottom:40px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
@@ -217,6 +269,8 @@ const SettingsView = {
         Cerrar Sesión
       </button>
     `;
+    this.renderCatalog();
+    if (Auth.getUser()?.role === 'owner') this.renderTeam();
   },
 
   _esc(val) {
@@ -238,15 +292,18 @@ const SettingsView = {
     const get = id => document.getElementById(id)?.value?.trim() ?? '';
 
     const payload = {
-      clinic_name:         get('s-clinic-name'),
-      clinic_phone:        get('s-clinic-phone'),
-      clinic_email:        get('s-clinic-email'),
-      clinic_address:      get('s-clinic-address'),
-      clinic_hours:        get('s-clinic-hours'),
-      clinic_welcome_msg:  document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
-      reminder_24h_active: this._settings.reminder_24h_active ?? 'true',
-      reminder_4h_active:  this._settings.reminder_4h_active  ?? 'true',
-      doctor_phone:        get('s-doctor-phone'),
+      clinic_name:          get('s-clinic-name'),
+      clinic_phone:         get('s-clinic-phone'),
+      clinic_email:         get('s-clinic-email'),
+      clinic_address:       get('s-clinic-address'),
+      clinic_hours:         get('s-clinic-hours'),
+      clinic_welcome_msg:   document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
+      reminder_24h_active:  this._settings.reminder_24h_active ?? 'true',
+      reminder_4h_active:   this._settings.reminder_4h_active  ?? 'true',
+      doctor_phone:         get('s-doctor-phone'),
+      twilio_account_sid:   get('s-twilio-sid'),
+      twilio_auth_token:    get('s-twilio-token'),
+      twilio_from_number:   get('s-twilio-from'),
     };
 
     if (!payload.clinic_name) {
@@ -283,4 +340,227 @@ const SettingsView = {
   async _testWhatsApp() {
     const telefono = document.getElementById('s-doctor-phone')?.value?.trim();
     if (!telefono) {
-      Toast.error('Ingresá tu número de Whats
+      Toast.error('Ingresá tu número de WhatsApp primero.');
+      document.getElementById('s-doctor-phone')?.focus();
+      return;
+    }
+    Toast.info('Enviando mensaje de prueba...');
+    try {
+      const res = await api.settings.testWhatsApp(telefono);
+      if (res.demo) {
+        Toast.warning('⚠️ Modo demo: el mensaje se imprimió en la consola del servidor (no hay credenciales de WhatsApp configuradas).');
+      } else {
+        Toast.success('✅ Mensaje enviado. Revisá tu WhatsApp en ' + telefono);
+      }
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  // ============================================================
+  // CATÁLOGO DE TRATAMIENTOS
+  // ============================================================
+  async renderCatalog() {
+    const el = document.getElementById('catalog-section');
+    if (!el) return;
+    el.innerHTML = `<div class="loading-spinner" style="margin:24px auto;"></div>`;
+    try {
+      const res  = await api.catalog.list();
+      const rows = res.data || [];
+      if (rows.length === 0) {
+        el.innerHTML = `<div style="text-align:center;color:var(--text-muted);padding:24px;font-size:13px;">Ningún tratamiento cargado aún.</div>`;
+        return;
+      }
+      // Agrupar por categoría
+      const groups = {};
+      rows.forEach(r => {
+        if (!groups[r.categoria]) groups[r.categoria] = [];
+        groups[r.categoria].push(r);
+      });
+      el.innerHTML = Object.entries(groups).map(([cat, items]) => `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;letter-spacing:.05em;">${cat}</div>
+          ${items.map(t => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;background:var(--bg-primary);">
+              <span style="flex:1;font-size:14px;color:var(--text-primary);">${t.nombre}</span>
+              <span style="font-size:14px;font-weight:600;color:var(--primary);min-width:70px;text-align:right;">S/ ${parseFloat(t.precio).toFixed(2)}</span>
+              <button onclick="SettingsView.editTreatment(${t.id},'${t.nombre.replace(/'/g,"\\'")}','${t.categoria}',${t.precio})"
+                style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;padding:0 4px;">✏️</button>
+              <button onclick="SettingsView.deleteTreatment(${t.id})"
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:16px;padding:0 4px;">✕</button>
+            </div>`).join('')}
+        </div>`).join('');
+    } catch (err) {
+      el.innerHTML = `<div style="color:var(--danger);font-size:13px;">Error: ${err.message}</div>`;
+    }
+  },
+
+  openAddTreatment(id, nombre, categoria, precio) {
+    const isEdit = !!id;
+    const modal  = document.createElement('div');
+    modal.id     = 'cat-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-surface);border-radius:16px;padding:24px;width:100%;max-width:400px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+          <h3 style="margin:0;font-size:16px;">${isEdit ? 'Editar' : 'Agregar'} tratamiento</h3>
+          <button onclick="document.getElementById('cat-modal').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);">×</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre del tratamiento *</label>
+          <input id="cat-nombre" class="form-control" value="${nombre || ''}" placeholder="Ej: Limpieza dental" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <input id="cat-cat" class="form-control" value="${categoria || 'General'}" placeholder="Ej: Preventivo, Estético..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Precio (S/) *</label>
+          <input id="cat-precio" class="form-control" type="number" min="0" step="0.01" value="${precio || ''}" placeholder="0.00" />
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px;">
+          <button class="btn btn-ghost" style="flex:1;" onclick="document.getElementById('cat-modal').remove()">Cancelar</button>
+          <button class="btn btn-primary" style="flex:1;" onclick="SettingsView.saveTreatment(${id || 'null'})">Guardar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    document.getElementById('cat-nombre').focus();
+  },
+
+  editTreatment(id, nombre, categoria, precio) {
+    this.openAddTreatment(id, nombre, categoria, precio);
+  },
+
+  async saveTreatment(id) {
+    const nombre   = document.getElementById('cat-nombre')?.value.trim();
+    const categoria = document.getElementById('cat-cat')?.value.trim() || 'General';
+    const precio   = parseFloat(document.getElementById('cat-precio')?.value);
+    if (!nombre || isNaN(precio)) { Toast.error('Completá nombre y precio.'); return; }
+    try {
+      if (id) {
+        await api.catalog.update(id, { nombre, categoria, precio });
+      } else {
+        await api.catalog.create({ nombre, categoria, precio });
+      }
+      document.getElementById('cat-modal')?.remove();
+      Toast.success('Tratamiento guardado.');
+      this.renderCatalog();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async deleteTreatment(id) {
+    if (!confirm('¿Eliminar este tratamiento?')) return;
+    try {
+      await api.catalog.remove(id);
+      Toast.success('Eliminado.');
+      this.renderCatalog();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  // ============================================================
+  // EQUIPO DE LA CLÍNICA
+  // ============================================================
+  async renderTeam() {
+    const el = document.getElementById('team-section');
+    if (!el) return;
+    try {
+      const res     = await api.clinic.get();
+      const clinic  = res.clinic;
+      const doctors = res.doctors || [];
+      const roleLabel = { owner: 'Propietario', doctor: 'Doctor', receptionist: 'Recepción' };
+
+      el.innerHTML = `
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+          Gestiona los miembros que acceden a <strong>${clinic.name}</strong>. Comparte el código de invitación con nuevos doctores.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="SettingsView.generateInvite()" style="margin-bottom:16px;">
+          + Generar código de invitación
+        </button>
+        <div id="invite-result" style="margin-bottom:12px;"></div>
+        <div>
+          ${doctors.map(d => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-primary);">
+              <div style="width:36px;height:36px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">
+                ${d.username[0].toUpperCase()}
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:600;color:var(--text-primary);">${d.doctor_name || d.username}</div>
+                <div style="font-size:12px;color:var(--text-muted);">${d.email || d.username} · <span style="color:var(--primary);">${roleLabel[d.role] || d.role}</span></div>
+              </div>
+              ${d.role !== 'owner' ? `
+              <button onclick="SettingsView.removeDoctor(${d.id}, '${(d.doctor_name || d.username).replace(/'/g,"\\'")}') "
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:20px;padding:0 4px;" title="Quitar de la clínica">×</button>
+              ` : ''}
+            </div>`).join('')}
+        </div>`;
+    } catch (err) {
+      const el2 = document.getElementById('team-section');
+      if (el2) el2.innerHTML = `<div style="color:var(--danger);font-size:13px;">Error: ${err.message}</div>`;
+    }
+  },
+
+  async generateInvite() {
+    try {
+      const res  = await api.clinic.invite();
+      const code = res.invite_code;
+      const el   = document.getElementById('invite-result');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Código de invitación</div>
+            <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--primary);">${code}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Compártelo con el nuevo doctor. Solo funciona una vez.</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>Toast.success('Copiado'))">Copiar</button>
+        </div>`;
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async removeDoctor(id, nombre) {
+    if (!confirm(`¿Quitar a ${nombre} de la clínica? Su cuenta no se eliminará.`)) return;
+    try {
+      await api.clinic.removeDoctor(id);
+      Toast.success(`${nombre} fue removido de la clínica.`);
+      this.renderTeam();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async _changePass() {
+    const curr  = document.getElementById('s-curr-pass')?.value || '';
+    const newP  = document.getElementById('s-new-pass')?.value  || '';
+    const newP2 = document.getElementById('s-new-pass2')?.value || '';
+    const err   = document.getElementById('pass-error');
+
+    err.style.display = 'none';
+
+    if (newP !== newP2) {
+      err.textContent = 'Las contraseñas nuevas no coinciden.';
+      err.style.display = 'block';
+      return;
+    }
+
+    try {
+      await api.auth.changePassword({ current_password: curr, new_password: newP });
+      Toast.success('🔑 Contraseña actualizada correctamente.');
+      this._togglePassForm();
+      document.getElementById('s-curr-pass').value  = '';
+      document.getElementById('s-new-pass').value   = '';
+      document.getElementById('s-new-pass2').value  = '';
+    } catch (e) {
+      err.textContent   = e.message;
+      err.style.display = 'block';
+    }
+  }
+};
+
+window.SettingsView = SettingsView;

@@ -104,7 +104,7 @@ const LoginView = {
     try {
       const res = await api.auth.login({ username, password });
       Auth.setToken(res.token);
-      Auth.setUser({ username: res.username, role: res.role });
+      Auth.setUser({ username: res.username, role: res.role, clinic_id: res.clinic_id, doctor_name: res.doctor_name });
 
       // Actualizar nombre de clínica en el header
       if (window.loadClinicName) await window.loadClinicName();
@@ -269,7 +269,7 @@ const SetupView = {
     try {
       const res = await api.auth.setup({ username, password, clinic_name: clinic, email });
       Auth.setToken(res.token);
-      Auth.setUser({ username: res.username, role: 'admin' });
+      Auth.setUser({ username: res.username, role: res.role || 'owner', clinic_id: res.clinic_id, doctor_name: res.doctor_name });
 
       Toast.success(`¡Cuenta creada! Bienvenido/a, ${res.username} 🦷`);
 
@@ -449,4 +449,6 @@ const ResetPasswordView = {
 };
 
 window.LoginView = LoginView;
-window.
+window.SetupView = SetupView;
+window.ForgotPasswordView = ForgotPasswordView;
+window.ResetPasswordView = ResetPasswordView;

@@ -166,6 +166,14 @@ const remoteApi = {
     delete: (id)        => remoteApi.request('DELETE', `/odontogram/${id}`),
   },
 
+  clinic: {
+    get:           ()    => remoteApi.request('GET',    '/clinic'),
+    update:        (data)=> remoteApi.request('PUT',    '/clinic', data),
+    doctors:       ()    => remoteApi.request('GET',    '/clinic/doctors'),
+    invite:        ()    => remoteApi.request('POST',   '/clinic/invite'),
+    removeDoctor:  (id)  => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
+  },
+
   auth: {
     status:         ()     => remoteApi.request('GET',  '/auth/status'),
     login:          (data) => remoteApi.request('POST', '/auth/login', data),
@@ -174,6 +182,7 @@ const remoteApi = {
     resetPassword:  (data) => remoteApi.request('POST', '/auth/reset-password', data),
     me:             ()     => remoteApi.request('GET',  '/auth/me'),
     changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
+    join:           (data) => remoteApi.request('POST', '/auth/join', data),
     logout() { Auth.clearToken(); },
   },
 

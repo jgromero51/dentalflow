@@ -1,7 +1,3 @@
-/**
- * DentalFlow — Vista de Dashboard (Inicio)
- * Muestra un resumen del día: citas pendientes, confirmadas, y próximos pacientes.
- */
 const DashboardView = {
   async render(container) {
     container.innerHTML = `
@@ -9,7 +5,7 @@ const DashboardView = {
         <div class="settings-hero">
           <div class="settings-hero-icon">📊</div>
           <div>
-            <h1 class="settings-hero-title">Resumen del Día</h1>
+            <h1 class="settings-hero-title">Resumen</h1>
             <p class="settings-hero-sub" id="dashboard-date">Cargando...</p>
           </div>
         </div>
@@ -19,13 +15,12 @@ const DashboardView = {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const res = await api.appointments.list({ startDate: today, endDate: today });
-      const citasHoy = res.data || [];
-      
-      const resUpcoming = await api.appointments.upcoming();
-      const proximasCitas = resUpcoming.data || [];
-
-      this._renderDashboard(container, citasHoy, proximasCitas);
+      const [resHoy, resStats, resUpcoming] = await Promise.all([
+        api.appointments.list({ startDate: today, endDate: today }),
+        api.appointments.stats(),
+        api.appointments.upcoming(),
+      ]);
+      this._render(container, resHoy.data || [], resStats, resUpcoming.data || []);
     } catch (err) {
       container.querySelector('#dashboard-view').innerHTML += `
         <div class="empty-state">
@@ -36,122 +31,223 @@ const DashboardView = {
     }
   },
 
-  _renderDashboard(container, citasHoy, proximasCitas) {
+  _fmt(n) {
+    return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+  },
+
+  _render(container, citasHoy, stats, proximasCitas) {
     const d = new Date();
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    const dateStr = d.toLocaleDateString('es-AR', options);
-    
-    // Calcular estadísticas
-    const totalHoy = citasHoy.length;
+    const dateStr = d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const totalHoy    = citasHoy.length;
     const confirmadas = citasHoy.filter(c => c.estado === 'confirmada').length;
-    const pendientes = citasHoy.filter(c => c.estado === 'pendiente').length;
-    const canceladas = citasHoy.filter(c => c.estado === 'cancelada').length;
+    const pendientes  = citasHoy.filter(c => c.estado === 'pendiente').length;
+    const ingresosHoy = citasHoy.reduce((s, c) => s + (c.monto_pagado || 0), 0);
 
-    // Próxima cita (la primera pendiente o confirmada a partir de ahora)
-    const ahora = new Date();
-    const proximaCita = proximasCitas.find(c => new Date(c.fecha_hora_inicio) > ahora && ['pendiente', 'confirmada'].includes(c.estado));
+    const proximaCita = proximasCitas.find(c =>
+      new Date(c.fecha_hora_inicio) > new Date() && ['pendiente','confirmada'].includes(c.estado)
+    );
 
-    // Calcular ingresos del día (pagos registrados hoy)
-    const ingresosHoy = citasHoy.reduce((sum, cita) => sum + (cita.monto_pagado || 0), 0);
+    const varMes = stats.ingresosMesAnterior > 0
+      ? Math.round(((stats.ingresosMes - stats.ingresosMesAnterior) / stats.ingresosMesAnterior) * 100)
+      : null;
+    const varColor = varMes >= 0 ? 'var(--success)' : 'var(--danger)';
+    const varIcon  = varMes >= 0 ? '↑' : '↓';
 
-    let html = `
+    const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const nomMes = meses[d.getMonth()];
+
+    container.querySelector('#dashboard-view').innerHTML = `
+      <!-- Cabecera -->
       <div class="settings-hero">
         <div class="settings-hero-icon">👋</div>
         <div>
           <h1 class="settings-hero-title">¡Hola!</h1>
-          <p class="settings-hero-sub" style="text-transform: capitalize;">${dateStr}</p>
+          <p class="settings-hero-sub" style="text-transform:capitalize;">${dateStr}</p>
         </div>
       </div>
 
-      <!-- Tarjetas de Estadísticas -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-bottom: 24px;">
-        
-        <div class="card" style="text-align: center; padding: 20px;">
-          <div style="font-size: 32px; font-weight: 800; color: var(--primary); margin-bottom: 4px;">${totalHoy}</div>
-          <div style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Citas Hoy</div>
-        </div>
-
-        <div class="card" style="text-align: center; padding: 20px;">
-          <div style="font-size: 32px; font-weight: 800; color: var(--success); margin-bottom: 4px;">${confirmadas}</div>
-          <div style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Confirmadas</div>
-        </div>
-
-        <div class="card" style="text-align: center; padding: 20px;">
-          <div style="font-size: 32px; font-weight: 800; color: var(--warning); margin-bottom: 4px;">${pendientes}</div>
-          <div style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Pendientes</div>
-        </div>
-        
-        <div class="card" style="text-align: center; padding: 20px; border: 1px solid rgba(46, 160, 67, 0.3);">
-          <div style="font-size: 24px; font-weight: 800; color: #2ea043; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; height: 38px;">$${ingresosHoy.toFixed(2)}</div>
-          <div style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">Ingresos Hoy</div>
-        </div>
-
+      <!-- Tabs -->
+      <div style="display:flex; gap:8px; margin-bottom:20px;">
+        <button class="btn btn-primary dash-tab active" data-tab="hoy" style="flex:1; justify-content:center;">Hoy</button>
+        <button class="btn btn-ghost dash-tab" data-tab="mes" style="flex:1; justify-content:center;">${nomMes}</button>
+        <button class="btn btn-ghost dash-tab" data-tab="deudores" style="flex:1; justify-content:center;">Deudas ${stats.deudores?.length > 0 ? `<span style="background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">${stats.deudores.length}</span>` : ''}</button>
       </div>
 
-      <!-- Próxima Cita -->
-      <div class="settings-section">
-        <div class="settings-section-label">
-          <span class="settings-section-icon">⏰</span>
-          Siguiente Paciente
+      <!-- Tab: HOY -->
+      <div id="tab-hoy">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px;">
+          ${this._statCard(totalHoy,    'Citas Hoy',    'var(--primary)')}
+          ${this._statCard(confirmadas, 'Confirmadas',  'var(--success)')}
+          ${this._statCard(pendientes,  'Pendientes',   'var(--warning)')}
+          ${this._statCardMoney(ingresosHoy, 'Cobrado Hoy', '#2ea043')}
         </div>
-        ${this._renderProximaCita(proximaCita)}
+
+        <div class="settings-section">
+          <div class="settings-section-label">
+            <span class="settings-section-icon">⏰</span> Siguiente Paciente
+          </div>
+          ${this._renderProximaCita(proximaCita)}
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-label">
+            <span class="settings-section-icon">⚡</span> Acciones Rápidas
+          </div>
+          <div class="card" style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="btn btn-primary" onclick="NewAppointmentView.open()" style="flex:1; min-width:140px; justify-content:center;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nueva Cita
+            </button>
+            <button class="btn btn-ghost" onclick="Router.navigate('appointments')" style="flex:1; min-width:140px; justify-content:center;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;margin-right:6px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Ver Agenda
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Acciones Rápidas -->
-      <div class="settings-section">
-        <div class="settings-section-label">
-          <span class="settings-section-icon">⚡</span>
-          Acciones Rápidas
+      <!-- Tab: MES -->
+      <div id="tab-mes" style="display:none;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px;">
+          ${this._statCardMoney(stats.ingresosMes, 'Ingresos ' + nomMes, '#2ea043')}
+          ${this._statCard(stats.citasMes, 'Citas ' + nomMes, 'var(--primary)')}
+          ${this._statCardMoney(stats.totalDeuda, 'Total Adeudado', 'var(--danger)')}
+          ${this._statCard(stats.tasaNoAsistencia + '%', 'No Asistencia', 'var(--warning)')}
         </div>
-        <div class="card" style="display: flex; gap: 12px; flex-wrap: wrap;">
-          <button class="btn btn-primary" onclick="NewAppointmentView.open()" style="flex: 1; min-width: 140px; justify-content: center;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px; height:16px; margin-right:6px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Nueva Cita
-          </button>
-          <button class="btn btn-ghost" onclick="Router.navigate('appointments')" style="flex: 1; min-width: 140px; justify-content: center;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px; height:16px; margin-right:6px;"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            Ver Agenda
-          </button>
+
+        ${varMes !== null ? `
+        <div class="card" style="display:flex; align-items:center; gap:12px; padding:16px; margin-bottom:16px;">
+          <span style="font-size:28px; font-weight:800; color:${varColor};">${varIcon} ${Math.abs(varMes)}%</span>
+          <div>
+            <div style="font-size:14px; font-weight:600; color:var(--text-primary);">vs. mes anterior</div>
+            <div style="font-size:12px; color:var(--text-secondary);">Mes anterior: $${this._fmt(stats.ingresosMesAnterior)}</div>
+          </div>
+        </div>` : ''}
+
+        <div class="settings-section">
+          <div class="settings-section-label">
+            <span class="settings-section-icon">📈</span> Resumen ${nomMes}
+          </div>
+          <div class="card" style="padding:16px;">
+            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);">
+              <span style="color:var(--text-secondary);">Ingresos cobrados</span>
+              <span style="font-weight:700; color:var(--success);">$${this._fmt(stats.ingresosMes)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border);">
+              <span style="color:var(--text-secondary);">Pendiente de cobro</span>
+              <span style="font-weight:700; color:var(--danger);">$${this._fmt(stats.totalDeuda)}</span>
+            </div>
+            <div style="display:flex; justify-content:space-between; padding:10px 0;">
+              <span style="color:var(--text-secondary);">Total facturado</span>
+              <span style="font-weight:700; color:var(--text-primary);">$${this._fmt((stats.ingresosMes || 0) + (stats.totalDeuda || 0))}</span>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- Tab: DEUDORES -->
+      <div id="tab-deudores" style="display:none;">
+        ${this._renderDeudores(stats.deudores || [], stats.totalDeuda)}
       </div>
     `;
 
-    container.querySelector('#dashboard-view').innerHTML = html;
+    // Tabs logic
+    container.querySelectorAll('.dash-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.dash-tab').forEach(b => {
+          b.classList.remove('active', 'btn-primary');
+          b.classList.add('btn-ghost');
+        });
+        btn.classList.add('active', 'btn-primary');
+        btn.classList.remove('btn-ghost');
+        ['hoy','mes','deudores'].forEach(t => {
+          const el = container.querySelector('#tab-' + t);
+          if (el) el.style.display = (t === btn.dataset.tab) ? '' : 'none';
+        });
+      });
+    });
+  },
+
+  _statCard(valor, label, color) {
+    return `
+      <div class="card" style="text-align:center; padding:18px;">
+        <div style="font-size:30px; font-weight:800; color:${color}; margin-bottom:4px;">${valor}</div>
+        <div style="font-size:12px; color:var(--text-secondary); font-weight:500;">${label}</div>
+      </div>`;
+  },
+
+  _statCardMoney(valor, label, color) {
+    return `
+      <div class="card" style="text-align:center; padding:18px; border:1px solid ${color}22;">
+        <div style="font-size:20px; font-weight:800; color:${color}; margin-bottom:4px;">$${this._fmt(valor)}</div>
+        <div style="font-size:12px; color:var(--text-secondary); font-weight:500;">${label}</div>
+      </div>`;
+  },
+
+  _renderDeudores(deudores, totalDeuda) {
+    if (!deudores.length) {
+      return `
+        <div class="empty-state" style="padding:40px;">
+          <div class="empty-icon" style="font-size:36px; margin-bottom:12px;">✅</div>
+          <div class="empty-title">Sin deudas pendientes</div>
+          <div class="empty-desc">Todos los pacientes están al día.</div>
+        </div>`;
+    }
+
+    const rows = deudores.map(d => {
+      const fecha = new Date(d.fecha_hora_inicio).toLocaleDateString('es-ES', { day:'2-digit', month:'short' });
+      return `
+        <div style="display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border);">
+          <div style="flex:1;">
+            <div style="font-size:14px; font-weight:600; color:var(--text-primary);">${d.paciente_nombre}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${fecha} · ${d.paciente_telefono}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:15px; font-weight:700; color:var(--danger);">$${this._fmt(d.deuda)}</div>
+            <div style="font-size:11px; color:var(--text-muted);">de $${this._fmt(d.costo_estimado)}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="Router.navigate('patient/${d.paciente_id}')" title="Ver paciente">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="card" style="padding:0 16px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--border);">
+          <span style="font-weight:700; color:var(--text-primary);">Total adeudado</span>
+          <span style="font-size:18px; font-weight:800; color:var(--danger);">$${this._fmt(totalDeuda)}</span>
+        </div>
+        ${rows}
+      </div>`;
   },
 
   _renderProximaCita(cita) {
     if (!cita) {
       return `
-        <div class="empty-state" style="padding: 30px;">
-          <div class="empty-icon" style="font-size: 32px; margin-bottom: 12px;">🎉</div>
+        <div class="empty-state" style="padding:30px;">
+          <div class="empty-icon" style="font-size:32px; margin-bottom:12px;">🎉</div>
           <div class="empty-title">¡Todo libre!</div>
           <div class="empty-desc">No tienes próximas citas pendientes.</div>
-        </div>
-      `;
+        </div>`;
     }
-
     const d = new Date(cita.fecha_hora_inicio);
     const hora = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} hs`;
     const initials = cita.paciente_nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
-    const estadoClass = cita.estado === 'confirmada' ? 'success' : (cita.estado === 'pendiente' ? 'warning' : 'primary');
-
+    const estadoColor = cita.estado === 'confirmada' ? 'success' : 'warning';
     return `
-      <div class="card" style="display: flex; align-items: center; gap: 16px; padding: 20px; border-left: 4px solid var(--${estadoClass});">
-        <div style="width: 50px; height: 50px; border-radius: 50%; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-primary); font-size: 18px; flex-shrink: 0;">
+      <div class="card" style="display:flex; align-items:center; gap:16px; padding:20px; border-left:4px solid var(--${estadoColor});">
+        <div style="width:50px; height:50px; border-radius:50%; background:var(--bg-elevated); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px; flex-shrink:0;">
           ${initials}
         </div>
-        <div style="flex: 1;">
-          <div style="font-size: 16px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">${cita.paciente_nombre}</div>
-          <div style="font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px;">
-             📅 ${d.toLocaleDateString('es-AR')} a las ${hora}
-          </div>
-          ${cita.descripcion ? `<div style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">${cita.descripcion}</div>` : ''}
+        <div style="flex:1;">
+          <div style="font-size:16px; font-weight:600; color:var(--text-primary); margin-bottom:4px;">${cita.paciente_nombre}</div>
+          <div style="font-size:14px; color:var(--text-secondary);">📅 ${d.toLocaleDateString('es-ES')} a las ${hora}</div>
+          ${cita.descripcion ? `<div style="font-size:13px; color:var(--text-muted); margin-top:4px;">${cita.descripcion}</div>` : ''}
         </div>
-        <div>
-          <span class="badge badge-${cita.estado}" style="font-size: 12px; padding: 4px 8px;">${cita.estado.toUpperCase()}</span>
-        </div>
-      </div>
-    `;
+        <span class="badge badge-${cita.estado}">${cita.estado.toUpperCase()}</span>
+      </div>`;
   }
 };
 

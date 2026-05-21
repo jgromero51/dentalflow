@@ -112,6 +112,7 @@ const remoteApi = {
     list:         (p = {})        => remoteApi.request('GET', `/appointments?${new URLSearchParams(p)}`),
     today:        ()              => remoteApi.request('GET', '/appointments/today'),
     upcoming:     ()              => remoteApi.request('GET', '/appointments/upcoming'),
+    stats:        ()              => remoteApi.request('GET', '/appointments/stats'),
     get:          (id)            => remoteApi.request('GET', `/appointments/${id}`),
     slots:        (fecha)         => remoteApi.request('GET', `/appointments/slots/${fecha}`),
     create:       (data)          => remoteApi.request('POST', '/appointments', data),
@@ -137,13 +138,40 @@ const remoteApi = {
   },
 
   messages: {
-    list: (p = {}) => remoteApi.request('GET', `/messages?${new URLSearchParams(p)}`),
+    list:          (p = {})              => remoteApi.request('GET',  `/messages?${new URLSearchParams(p)}`),
+    conversations: ()                    => remoteApi.request('GET',  '/messages/conversations'),
+    conversation:  (patientId)           => remoteApi.request('GET',  `/messages/conversation/${patientId}`),
+    reply:         (patient_id, mensaje) => remoteApi.request('POST', '/messages/reply', { patient_id, mensaje }),
+  },
+
+  proformas: {
+    list:        (patient_id) => remoteApi.request('GET',    `/proformas?patient_id=${patient_id}`),
+    create:      (data)       => remoteApi.request('POST',   '/proformas', data),
+    update:      (id, data)   => remoteApi.request('PUT',    `/proformas/${id}`, data),
+    remove:      (id)         => remoteApi.request('DELETE', `/proformas/${id}`),
+    sendWhatsApp:(id)         => remoteApi.request('POST',   `/proformas/${id}/send-whatsapp`),
+  },
+
+  catalog: {
+    list:          ()           => remoteApi.request('GET',    '/catalog'),
+    create:        (data)       => remoteApi.request('POST',   '/catalog', data),
+    update:        (id, data)   => remoteApi.request('PUT',    `/catalog/${id}`, data),
+    remove:        (id)         => remoteApi.request('DELETE', `/catalog/${id}`),
+    proformaVoice: (audio, ext) => remoteApi.request('POST',   '/catalog/proforma-voice', { audio, ext }),
   },
 
   odontogram: {
     get:    (patientId) => remoteApi.request('GET', `/odontogram/${patientId}`),
     create: (data)      => remoteApi.request('POST', '/odontogram', data),
     delete: (id)        => remoteApi.request('DELETE', `/odontogram/${id}`),
+  },
+
+  clinic: {
+    get:           ()    => remoteApi.request('GET',    '/clinic'),
+    update:        (data)=> remoteApi.request('PUT',    '/clinic', data),
+    doctors:       ()    => remoteApi.request('GET',    '/clinic/doctors'),
+    invite:        ()    => remoteApi.request('POST',   '/clinic/invite'),
+    removeDoctor:  (id)  => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
   },
 
   auth: {
@@ -154,6 +182,7 @@ const remoteApi = {
     resetPassword:  (data) => remoteApi.request('POST', '/auth/reset-password', data),
     me:             ()     => remoteApi.request('GET',  '/auth/me'),
     changePassword: (data) => remoteApi.request('POST', '/auth/change-password', data),
+    join:           (data) => remoteApi.request('POST', '/auth/join', data),
     logout() { Auth.clearToken(); },
   },
 
@@ -334,4 +363,10 @@ const _checkServer = async () => {
 // Ejecutar verificación al cargar
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') {
-    document.ad
+    document.addEventListener('DOMContentLoaded', _checkServer);
+  } else {
+    _checkServer();
+  }
+}
+
+window.api = api;

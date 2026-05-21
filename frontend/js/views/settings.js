@@ -248,6 +248,18 @@ const SettingsView = {
         </div>
       </div>
 
+      <!-- Sección: Equipo (solo owner) -->
+      ${(Auth.getUser()?.role === 'owner') ? `
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">👥</span>
+          Equipo de la Clínica
+        </div>
+        <div class="settings-card" id="team-section">
+          <div class="loading-spinner" style="margin:20px auto;"></div>
+        </div>
+      </div>` : ''}
+
       <!-- Cerrar sesión -->
       <button class="btn btn-danger btn-full" onclick="logout()" style="margin-bottom:40px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
@@ -258,6 +270,7 @@ const SettingsView = {
       </button>
     `;
     this.renderCatalog();
+    if (Auth.getUser()?.role === 'owner') this.renderTeam();
   },
 
   _esc(val) {
@@ -444,6 +457,79 @@ const SettingsView = {
       await api.catalog.remove(id);
       Toast.success('Eliminado.');
       this.renderCatalog();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  // ============================================================
+  // EQUIPO DE LA CLÍNICA
+  // ============================================================
+  async renderTeam() {
+    const el = document.getElementById('team-section');
+    if (!el) return;
+    try {
+      const res     = await api.clinic.get();
+      const clinic  = res.clinic;
+      const doctors = res.doctors || [];
+      const roleLabel = { owner: 'Propietario', doctor: 'Doctor', receptionist: 'Recepción' };
+
+      el.innerHTML = `
+        <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
+          Gestiona los miembros que acceden a <strong>${clinic.name}</strong>. Comparte el código de invitación con nuevos doctores.
+        </p>
+        <button class="btn btn-primary btn-sm" onclick="SettingsView.generateInvite()" style="margin-bottom:16px;">
+          + Generar código de invitación
+        </button>
+        <div id="invite-result" style="margin-bottom:12px;"></div>
+        <div>
+          ${doctors.map(d => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--bg-primary);">
+              <div style="width:36px;height:36px;border-radius:50%;background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">
+                ${d.username[0].toUpperCase()}
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:14px;font-weight:600;color:var(--text-primary);">${d.doctor_name || d.username}</div>
+                <div style="font-size:12px;color:var(--text-muted);">${d.email || d.username} · <span style="color:var(--primary);">${roleLabel[d.role] || d.role}</span></div>
+              </div>
+              ${d.role !== 'owner' ? `
+              <button onclick="SettingsView.removeDoctor(${d.id}, '${(d.doctor_name || d.username).replace(/'/g,"\\'")}') "
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:20px;padding:0 4px;" title="Quitar de la clínica">×</button>
+              ` : ''}
+            </div>`).join('')}
+        </div>`;
+    } catch (err) {
+      const el2 = document.getElementById('team-section');
+      if (el2) el2.innerHTML = `<div style="color:var(--danger);font-size:13px;">Error: ${err.message}</div>`;
+    }
+  },
+
+  async generateInvite() {
+    try {
+      const res  = await api.clinic.invite();
+      const code = res.invite_code;
+      const el   = document.getElementById('invite-result');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Código de invitación</div>
+            <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--primary);">${code}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Compártelo con el nuevo doctor. Solo funciona una vez.</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>Toast.success('Copiado'))">Copiar</button>
+        </div>`;
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async removeDoctor(id, nombre) {
+    if (!confirm(`¿Quitar a ${nombre} de la clínica? Su cuenta no se eliminará.`)) return;
+    try {
+      await api.clinic.removeDoctor(id);
+      Toast.success(`${nombre} fue removido de la clínica.`);
+      this.renderTeam();
     } catch (err) {
       Toast.error('Error: ' + err.message);
     }
