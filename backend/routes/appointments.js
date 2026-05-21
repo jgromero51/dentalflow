@@ -103,19 +103,25 @@ router.get('/upcoming', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/appointments/stats — estadísticas financieras del mes actual y deudores
+// GET /api/appointments/stats — estadísticas financieras del mes seleccionado y deudores
 router.get('/stats', async (req, res) => {
   try {
     const uid = req.user.id;
     const now = new Date();
-    const mesActual = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const mesActual = req.query.mes || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
     const mesAnterior = (() => {
-      const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const [y, m] = mesActual.split('-').map(Number);
+      const d = new Date(y, m - 2, 1);
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     })();
-    const hoy = now.toISOString().split('T')[0];
 
-    const [ingresosMes, ingresosMesAnterior, citasMes, deudores, noAsistioMes, totalCitasMesConEstado] = await Promise.all([
+    // Historial: últimos 6 meses desde HOY (independiente del mes seleccionado)
+    const historialMeses = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    });
+
+    const [ingresosMes, ingresosMesAnterior, citasMes, deudores, noAsistioMes, totalCitasMesConEstado, ...historialRows] = await Promise.all([
       db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
       db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesAnterior),
       db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
@@ -131,12 +137,16 @@ router.get('/stats', async (req, res) => {
       `).all(uid),
       db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado='no_asistio'`).get(uid, mesActual),
       db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado IN ('confirmada','no_asistio')`).get(uid, mesActual),
+      ...historialMeses.map(m =>
+        db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, m)
+      ),
     ]);
 
     const totalDeuda = deudores.reduce((s, d) => s + d.deuda, 0);
     const tasaNoAsistencia = totalCitasMesConEstado.c > 0
       ? Math.round((noAsistioMes.c / totalCitasMesConEstado.c) * 100)
       : 0;
+    const historial = historialMeses.map((m, i) => ({ mes: m, total: historialRows[i].total }));
 
     res.json({
       ingresosMes: ingresosMes.total,
@@ -146,6 +156,7 @@ router.get('/stats', async (req, res) => {
       totalDeuda,
       tasaNoAsistencia,
       mesActual,
+      historial,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

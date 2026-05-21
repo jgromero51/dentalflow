@@ -112,7 +112,7 @@ const remoteApi = {
     list:         (p = {})        => remoteApi.request('GET', `/appointments?${new URLSearchParams(p)}`),
     today:        ()              => remoteApi.request('GET', '/appointments/today'),
     upcoming:     ()              => remoteApi.request('GET', '/appointments/upcoming'),
-    stats:        ()              => remoteApi.request('GET', '/appointments/stats'),
+    stats:        (mes)           => remoteApi.request('GET', `/appointments/stats${mes ? '?mes=' + mes : ''}`),
     get:          (id)            => remoteApi.request('GET', `/appointments/${id}`),
     slots:        (fecha)         => remoteApi.request('GET', `/appointments/slots/${fecha}`),
     create:       (data)          => remoteApi.request('POST', '/appointments', data),
