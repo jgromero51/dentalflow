@@ -77,11 +77,25 @@ const SettingsView = {
                 value="${this._esc(s.clinic_email)}" />
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:0;">
+          <div class="form-group">
             <label class="form-label" for="s-clinic-address">Dirección</label>
             <input id="s-clinic-address" class="form-control" type="text"
               placeholder="Av. Corrientes 1234, CABA"
               value="${this._esc(s.clinic_address)}" maxlength="120" />
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="s-clinic-ruc">RUC / NIT</label>
+              <input id="s-clinic-ruc" class="form-control" type="text"
+                placeholder="20612160695"
+                value="${this._esc(s.clinic_ruc)}" maxlength="20" />
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="s-doctor-name">Nombre del doctor</label>
+              <input id="s-doctor-name" class="form-control" type="text"
+                placeholder="Dr. Juan García"
+                value="${this._esc(s.doctor_name)}" maxlength="80" />
+            </div>
           </div>
         </div>
       </div>
@@ -278,6 +292,8 @@ const SettingsView = {
       clinic_phone:         get('s-clinic-phone'),
       clinic_email:         get('s-clinic-email'),
       clinic_address:       get('s-clinic-address'),
+      clinic_ruc:           get('s-clinic-ruc'),
+      doctor_name:          get('s-doctor-name'),
       clinic_hours:         get('s-clinic-hours'),
       clinic_welcome_msg:   document.getElementById('s-welcome-msg')?.value?.trim() ?? '',
       reminder_24h_active:  this._settings.reminder_24h_active ?? 'true',

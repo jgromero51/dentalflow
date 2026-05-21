@@ -728,7 +728,7 @@ const PatientDetailView = {
     container.appendChild(row);
   },
 
-  printProforma() {
+  async printProforma() {
     const p = this.patient;
     const rows = document.querySelectorAll('#proforma-items .proforma-row');
     const notas = document.getElementById('proforma-notas')?.value || '';
@@ -737,25 +737,35 @@ const PatientDetailView = {
     let total = 0;
     rows.forEach(row => {
       const inputs = row.querySelectorAll('input');
-      const desc = inputs[0]?.value.trim();
+      const desc   = inputs[0]?.value.trim();
       const precio = parseFloat(inputs[1]?.value) || 0;
-      if (desc) {
-        items.push({ desc, precio });
-        total += precio;
-      }
+      if (desc) { items.push({ desc, precio }); total += precio; }
     });
+    if (items.length === 0) { Toast.warning('Agregá al menos un tratamiento'); return; }
 
-    if (items.length === 0) {
-      Toast.warning('Agregá al menos un tratamiento');
-      return;
-    }
+    // Cargar datos de la clínica
+    let clinica = {}, doctorNombre = '', ruc = '', direccion = '', telefono = '', email = '', validezDias = 15;
+    try {
+      const res = await api.settings.get();
+      clinica = res.data || {};
+      doctorNombre  = clinica.doctor_name || '';
+      ruc           = clinica.clinic_ruc  || '';
+      direccion     = clinica.clinic_address || '';
+      telefono      = clinica.clinic_phone   || '';
+      email         = clinica.clinic_email   || '';
+      validezDias   = parseInt(clinica.proforma_validez_dias) || 15;
+    } catch (_) {}
 
-    const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const clinicaNombre = clinica.clinic_name || 'Consultorio Dental';
+    const fecha = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+    const validezFecha = new Date(Date.now() + validezDias * 86400000)
+      .toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+
     const itemsHTML = items.map((it, i) => `
-      <tr style="border-bottom:1px solid #e5e7eb;">
-        <td style="padding:10px 12px;text-align:center;color:#6b7280;">${i + 1}</td>
-        <td style="padding:10px 12px;">${it.desc}</td>
-        <td style="padding:10px 12px;text-align:right;font-weight:500;">$${it.precio.toFixed(2)}</td>
+      <tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+        <td style="text-align:center;color:#6b7280;padding:9px 10px;">${i + 1}</td>
+        <td style="padding:9px 12px;">${it.desc}</td>
+        <td style="padding:9px 12px;text-align:right;font-weight:500;">S/ ${it.precio.toFixed(2)}</td>
       </tr>`).join('');
 
     const html = `<!DOCTYPE html>
@@ -765,66 +775,121 @@ const PatientDetailView = {
   <title>Proforma — ${p.nombre}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #111; padding: 40px; background: #fff; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 36px; }
-    .brand { font-size: 24px; font-weight: 700; color: #0d1117; }
-    .brand span { color: #00b4d8; }
-    .meta { text-align: right; font-size: 13px; color: #6b7280; }
-    .meta strong { display: block; font-size: 16px; color: #111; margin-bottom: 4px; }
-    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 16px; border-bottom: 2px solid #0d1117; padding-bottom: 6px; }
-    .patient-box { background: #f9fafb; border-radius: 8px; padding: 14px 18px; margin-bottom: 28px; font-size: 14px; }
-    .patient-box strong { font-size: 16px; display: block; margin-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px; }
-    thead { background: #0d1117; color: #fff; }
-    thead th { padding: 10px 12px; text-align: left; font-weight: 600; font-size: 13px; }
-    thead th:first-child { border-radius: 6px 0 0 6px; text-align:center; width:48px; }
-    thead th:last-child { border-radius: 0 6px 6px 0; text-align:right; }
-    .total-row { font-weight: 700; font-size: 16px; }
-    .total-row td { padding: 14px 12px; border-top: 2px solid #0d1117; }
-    .notas { background: #f9fafb; border-left: 3px solid #00b4d8; padding: 12px 16px; font-size: 13px; color: #374151; border-radius: 0 6px 6px 0; margin-top: 8px; }
-    .footer { margin-top: 48px; font-size: 12px; color: #9ca3af; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 16px; }
-    @media print { body { padding: 20px; } }
+    body { font-family: Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; padding:32px 40px; font-size:13px; }
+
+    /* HEADER */
+    .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; padding-bottom:16px; border-bottom:3px solid #1a6fc4; }
+    .clinic-name { font-size:22px; font-weight:800; color:#1a6fc4; letter-spacing:-0.5px; }
+    .clinic-sub  { font-size:11px; color:#555; margin-top:3px; line-height:1.6; }
+    .badge-box   { text-align:right; }
+    .badge-proforma { background:#1a6fc4; color:#fff; font-size:13px; font-weight:700; padding:5px 16px; border-radius:4px; display:inline-block; margin-bottom:6px; letter-spacing:1px; }
+    .ruc-box { font-size:11px; color:#555; }
+    .ruc-box strong { color:#1a1a1a; font-size:12px; }
+
+    /* TITLE */
+    .doc-title { text-align:center; font-size:15px; font-weight:700; letter-spacing:2px; color:#1a6fc4; background:#eef4fc; padding:8px; margin-bottom:16px; border:1px solid #c2d9f0; }
+
+    /* PATIENT */
+    .patient-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; background:#f7f9fc; border:1px solid #dde5f0; border-radius:6px; padding:12px 16px; margin-bottom:18px; }
+    .patient-grid .label { font-size:10px; color:#888; text-transform:uppercase; font-weight:600; }
+    .patient-grid .value { font-size:13px; color:#1a1a1a; font-weight:600; border-bottom:1px solid #d0d8e8; padding-bottom:2px; min-height:20px; }
+
+    /* TABLE */
+    table { width:100%; border-collapse:collapse; font-size:13px; margin-bottom:0; }
+    thead tr { background:#1a6fc4; color:#fff; }
+    thead th { padding:9px 12px; font-weight:700; font-size:12px; letter-spacing:0.5px; }
+    thead th:first-child { width:40px; text-align:center; }
+    thead th:last-child  { text-align:right; width:110px; }
+    .row-even { background:#fff; }
+    .row-odd  { background:#f4f7fd; }
+    td { border-bottom:1px solid #e2e8f0; }
+    .total-row td { background:#1a6fc4; color:#fff; font-weight:700; font-size:14px; padding:11px 12px; border:none; }
+    .total-row td:last-child { text-align:right; }
+
+    /* NOTAS + FOOTER */
+    .notas { margin-top:14px; background:#fffbea; border-left:3px solid #f59e0b; padding:9px 14px; border-radius:0 6px 6px 0; font-size:12px; color:#555; }
+    .validez { margin-top:12px; font-size:11px; color:#888; font-style:italic; text-align:center; }
+    .firma-row { display:flex; justify-content:flex-end; margin-top:36px; }
+    .firma-box { text-align:center; width:220px; }
+    .firma-line { border-top:1.5px solid #1a1a1a; margin-bottom:6px; }
+    .firma-name { font-weight:700; font-size:13px; }
+    .firma-sub  { font-size:11px; color:#888; }
+    .footer { margin-top:28px; font-size:10px; color:#aaa; text-align:center; border-top:1px solid #e5e7eb; padding-top:10px; }
+    @media print { body { padding:16px 24px; } }
   </style>
 </head>
 <body>
+
   <div class="header">
-    <div class="brand">🦷 <span>Dental</span>Flow</div>
-    <div class="meta">
-      <strong>PROFORMA</strong>
-      Fecha: ${fecha}
+    <div>
+      <div class="clinic-name">🦷 ${clinicaNombre}</div>
+      <div class="clinic-sub">
+        ${direccion ? direccion + '<br>' : ''}
+        ${telefono ? 'Tel: ' + telefono : ''}${telefono && email ? ' &nbsp;|&nbsp; ' : ''}${email ? 'E-mail: ' + email : ''}
+      </div>
+    </div>
+    <div class="badge-box">
+      <div class="badge-proforma">PROFORMA</div>
+      ${ruc ? `<div class="ruc-box">RUC: <strong>${ruc}</strong></div>` : ''}
+      <div class="ruc-box">Fecha: <strong>${fecha}</strong></div>
     </div>
   </div>
 
-  <h2>Datos del Paciente</h2>
-  <div class="patient-box">
-    <strong>${p.nombre}</strong>
-    Tel: ${p.telefono || '—'}
+  <div class="doc-title">PROFORMA DE TRATAMIENTO</div>
+
+  <div class="patient-grid">
+    <div>
+      <div class="label">Nombre y apellido</div>
+      <div class="value">${p.nombre}</div>
+    </div>
+    <div>
+      <div class="label">DNI / Documento</div>
+      <div class="value">${p.dni || ''}</div>
+    </div>
+    <div>
+      <div class="label">Teléfono</div>
+      <div class="value">${p.telefono || ''}</div>
+    </div>
+    <div>
+      <div class="label">Fecha de emisión</div>
+      <div class="value">${fecha}</div>
+    </div>
   </div>
 
-  <h2>Tratamientos Propuestos</h2>
   <table>
     <thead>
       <tr>
-        <th>#</th>
-        <th>Descripción del Tratamiento</th>
-        <th style="text-align:right;">Precio</th>
+        <th style="text-align:center;">#</th>
+        <th>DESCRIPCIÓN DEL TRATAMIENTO</th>
+        <th style="text-align:right;">PRECIO</th>
       </tr>
     </thead>
     <tbody>
       ${itemsHTML}
       <tr class="total-row">
-        <td colspan="2" style="padding:14px 12px;">TOTAL</td>
-        <td style="padding:14px 12px;text-align:right;">$${total.toFixed(2)}</td>
+        <td colspan="2">TOTAL</td>
+        <td>S/ ${total.toFixed(2)}</td>
       </tr>
     </tbody>
   </table>
 
-  ${notas ? `<div class="notas"><strong>Notas:</strong> ${notas}</div>` : ''}
+  ${notas ? `<div class="notas"><strong>📝 Notas:</strong> ${notas}</div>` : ''}
+
+  <div class="validez">⚠️ Esta proforma es válida hasta el <strong>${validezFecha}</strong> (${validezDias} días desde la fecha de emisión).</div>
+
+  <div class="firma-row">
+    <div class="firma-box">
+      <div class="firma-line"></div>
+      <div class="firma-name">${doctorNombre || clinicaNombre}</div>
+      <div class="firma-sub">Cirujano Dentista</div>
+    </div>
+  </div>
 
   <div class="footer">
-    Este documento es una proforma informativa y no constituye un comprobante fiscal.<br>
-    Generado con DentalFlow · ${fecha}
+    Este documento es una proforma informativa y no constituye un comprobante fiscal de pago.<br>
+    Generado con DentalFlow · ${clinicaNombre} · ${fecha}
   </div>
+
 </body>
 </html>`;
 

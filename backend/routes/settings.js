@@ -26,7 +26,7 @@ router.post('/', async (req, res) => {
   const allowed = [
     'clinic_name', 'clinic_phone', 'clinic_address', 'clinic_email',
     'clinic_hours', 'clinic_welcome_msg', 'reminder_24h_active', 'reminder_4h_active',
-    'doctor_phone',
+    'doctor_phone', 'clinic_ruc', 'doctor_name', 'proforma_validez_dias',
   ];
   const uid = req.user.id;
   try {
