@@ -391,4 +391,70 @@ Respondé SOLO en JSON válido, sin markdown:
   return parsed;
 }
 
-module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice };
+// ============================================================
+// FUNCIÓN 6: Generar items de proforma desde foto
+// ============================================================
+
+/**
+ * Analiza una imagen (lista de precios manuscrita o impresa) y extrae
+ * los tratamientos con sus precios.
+ * @param {string} base64Image - Imagen en base64
+ * @param {string} mimeType    - 'image/jpeg' | 'image/png' | 'image/webp'
+ * @param {Array}  catalog     - Catálogo de tratamientos del doctor
+ * @returns {Promise<Array<{nombre, precio}>>}
+ */
+async function generateProformaFromImage(base64Image, mimeType, catalog) {
+  const ai = getOpenAIClient();
+  if (!ai) throw new Error('La IA no está configurada. Agregá tu API Key de OpenAI en Render.');
+
+  const catalogText = catalog.length > 0
+    ? catalog.map(t => `- ${t.nombre} (${t.categoria}): S/ ${t.precio}`).join('\n')
+    : 'Sin tratamientos en el catálogo.';
+
+  const prompt = `Eres asistente de un consultorio odontológico. Se te envía una foto de una lista de tratamientos con precios (puede estar escrita a mano o impresa).
+
+CATÁLOGO DE TRATAMIENTOS DE LA CLÍNICA (para comparar):
+${catalogText}
+
+Tu tarea:
+1. Leer todos los tratamientos y precios que aparecen en la imagen.
+2. Si un tratamiento de la imagen coincide con uno del catálogo, usar el nombre exacto del catálogo.
+3. Si no coincide, usar el nombre como aparece en la imagen.
+4. Extraer el precio numérico (solo el número, sin símbolo de moneda).
+
+Respondé SOLO en JSON válido sin markdown:
+[
+  {"nombre": "nombre del tratamiento", "precio": 0},
+  ...
+]
+
+Si no podés leer la imagen o no hay tratamientos visibles, devolvé: []`;
+
+  const response = await ai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: 'high' } }
+      ]
+    }],
+    max_tokens: 500,
+    temperature: 0.1,
+  });
+
+  let parsed;
+  try {
+    const content = response.choices[0].message.content.trim()
+      .replace(/```json/g, '').replace(/```/g, '').trim();
+    const obj = JSON.parse(content);
+    parsed = Array.isArray(obj) ? obj : (obj.items || obj.tratamientos || Object.values(obj)[0] || []);
+  } catch (e) {
+    throw new Error('La IA devolvió un formato inesperado.');
+  }
+
+  console.log(`[AI] Imagen procesada: ${parsed.length} tratamientos encontrados`);
+  return parsed;
+}
+
+module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage };

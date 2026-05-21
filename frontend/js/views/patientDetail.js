@@ -506,8 +506,13 @@ const PatientDetailView = {
           <button id="proforma-voice-btn" class="btn btn-secondary btn-sm" onclick="PatientDetailView.dictarProforma()" style="display:flex;align-items:center;gap:6px;">
             🎙️ Dictar por voz
           </button>
-          <span style="font-size:12px;color:var(--text-muted);">La IA completa precios del catálogo</span>
+          <button class="btn btn-secondary btn-sm" onclick="PatientDetailView.subirFotoProforma()" style="display:flex;align-items:center;gap:6px;">
+            📷 Desde foto
+          </button>
+          <input type="file" id="proforma-img-input" accept="image/*" style="display:none;" onchange="PatientDetailView._procesarFotoProforma(this)">
+          <span style="font-size:12px;color:var(--text-muted);">La IA lee tu lista de precios</span>
         </div>
+        <div id="proforma-img-preview" style="display:none;margin-top:8px;"></div>
 
         <div>
           <label style="font-size:13px;color:var(--text-secondary);display:block;margin-bottom:4px;">Notas / condiciones (opcional)</label>
@@ -950,6 +955,68 @@ const PatientDetailView = {
       </div>`;
     document.body.appendChild(modal);
     modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  },
+
+  subirFotoProforma() {
+    document.getElementById('proforma-img-input')?.click();
+  },
+
+  async _procesarFotoProforma(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    // Mostrar preview
+    const preview = document.getElementById('proforma-img-preview');
+    if (preview) {
+      const url = URL.createObjectURL(file);
+      preview.style.display = 'block';
+      preview.innerHTML = `
+        <div style="position:relative;display:inline-block;">
+          <img src="${url}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border-color);" />
+          <div id="proforma-img-loading" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.5);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+            <div class="loading-spinner" style="width:24px;height:24px;border-color:rgba(255,255,255,.3);border-top-color:#fff;"></div>
+          </div>
+        </div>
+        <div id="proforma-img-status" style="font-size:12px;color:var(--text-muted);margin-top:6px;">📷 Analizando imagen con IA...</div>
+      `;
+    }
+
+    // Convertir a base64
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const dataUrl  = reader.result;
+      const base64   = dataUrl.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
+
+      const loadingEl = document.getElementById('proforma-img-loading');
+      const statusEl  = document.getElementById('proforma-img-status');
+      if (loadingEl) loadingEl.style.display = 'flex';
+
+      try {
+        const res   = await api.catalog.proformaImage(base64, mimeType);
+        const items = res.data || [];
+
+        if (items.length === 0) {
+          if (statusEl) statusEl.innerHTML = `<span style="color:#da3633;">⚠️ No se detectaron tratamientos. Intentá con una foto más clara.</span>`;
+          return;
+        }
+
+        // Limpiar items actuales y cargar los de la foto
+        document.getElementById('proforma-items')?.querySelectorAll('.proforma-row').forEach(r => r.remove());
+        items.forEach(item => this.addProformaItem(item.nombre, item.precio));
+        this._updateProformaTotal();
+
+        if (statusEl) statusEl.innerHTML = `<span style="color:#2ea043;">✅ ${items.length} tratamiento(s) detectados correctamente.</span>`;
+        Toast.success(`✅ ${items.length} tratamientos cargados desde la foto.`);
+      } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span style="color:#da3633;">⚠️ Error: ${err.message}</span>`;
+        Toast.error('Error al procesar la imagen: ' + err.message);
+      } finally {
+        if (loadingEl) loadingEl.style.display = 'none';
+        input.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
   },
 
   async saveEdit() {

@@ -161,7 +161,8 @@ const remoteApi = {
     create:        (data)       => remoteApi.request('POST',   '/catalog', data),
     update:        (id, data)   => remoteApi.request('PUT',    `/catalog/${id}`, data),
     remove:        (id)         => remoteApi.request('DELETE', `/catalog/${id}`),
-    proformaVoice: (audio, ext) => remoteApi.request('POST',   '/catalog/proforma-voice', { audio, ext }),
+    proformaVoice:  (audio, ext)          => remoteApi.request('POST', '/catalog/proforma-voice',  { audio, ext }),
+    proformaImage:  (image, mimeType)     => remoteApi.request('POST', '/catalog/proforma-image', { image, mimeType }),
   },
 
   odontogram: {

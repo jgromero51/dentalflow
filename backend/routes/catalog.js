@@ -74,4 +74,21 @@ router.post('/proforma-voice', async (req, res) => {
   }
 });
 
+// POST /api/catalog/proforma-image — imagen base64 → items de proforma
+router.post('/proforma-image', async (req, res) => {
+  const { image, mimeType } = req.body;
+  if (!image) return res.status(400).json({ error: 'Falta la imagen' });
+  try {
+    const { generateProformaFromImage } = require('../services/ai');
+    const catalog = await db.prepare(
+      `SELECT nombre, categoria, precio FROM treatment_catalog WHERE user_id = ? ORDER BY nombre`
+    ).all(req.user.id);
+    const items = await generateProformaFromImage(image, mimeType || 'image/jpeg', catalog);
+    res.json({ success: true, data: items });
+  } catch (err) {
+    console.error('[Catalog] Error imagen→proforma:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
