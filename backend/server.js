@@ -26,8 +26,26 @@ const clinicRouter           = require('./routes/clinic');
 const recallRouter           = require('./routes/recall');
 const notificationsRouter    = require('./routes/notifications');
 
+const rateLimit = require('express-rate-limit');
+
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+// ---- Rate limiters ----
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // ventana de 15 minutos
+  max: 10,                   // máx 10 intentos por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos de inicio de sesión. Esperá 15 minutos.' },
+  skipSuccessfulRequests: true, // no cuenta los logins exitosos
+});
+
+const setupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // ventana de 1 hora
+  max: 5,                    // máx 5 creaciones de usuario por IP por hora
+  message: { error: 'Demasiadas solicitudes de registro. Intentá más tarde.' },
+});
 
 // ---- Middleware ----
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -64,6 +82,8 @@ app.use(express.static(frontendPath));
 
 // ---- Rutas API ----
 // Públicas (no requieren token)
+app.use('/api/auth/login',   loginLimiter);
+app.use('/api/auth/setup',   setupLimiter);
 app.use('/api/auth',         authRouter);
 app.use('/api/webhook',      webhookRouter); // WhatsApp llama sin token
 

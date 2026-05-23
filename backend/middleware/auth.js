@@ -7,8 +7,14 @@
 
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET  = process.env.JWT_SECRET || 'dentalflow_jwt_secret_change_in_production';
-const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
+const JWT_SECRET  = process.env.JWT_SECRET;
+const JWT_EXPIRES = process.env.JWT_EXPIRES || '24h';
+
+if (!JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET no está configurado en las variables de entorno.');
+  console.error('[FATAL] Generá uno con: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
 
 /**
  * Genera un token JWT para el usuario dado.

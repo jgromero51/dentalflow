@@ -25,7 +25,27 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/webhook — Mensajes entrantes de WhatsApp
-router.post('/', async (req, res) => {
+router.post('/', (req, res, next) => {
+  // Verificar firma HMAC de Meta (X-Hub-Signature-256)
+  const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+  if (APP_SECRET) {
+    const signature = req.headers['x-hub-signature-256'];
+    if (!signature) {
+      console.warn('[Webhook] ⚠️ Petición sin firma — rechazada');
+      return res.sendStatus(403);
+    }
+    const crypto = require('crypto');
+    const expected = 'sha256=' + crypto
+      .createHmac('sha256', APP_SECRET)
+      .update(JSON.stringify(req.body))
+      .digest('hex');
+    if (signature !== expected) {
+      console.warn('[Webhook] ⚠️ Firma inválida — posible petición falsificada');
+      return res.sendStatus(403);
+    }
+  }
+  next();
+}, async (req, res) => {
   // Responder 200 inmediatamente (requerido por Meta en < 20s)
   res.sendStatus(200);
 
