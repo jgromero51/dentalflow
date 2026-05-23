@@ -20,13 +20,21 @@ router.get('/conversations', async (req, res) => {
         m.mensaje as ultimo_mensaje,
         m.tipo as ultimo_tipo,
         m.created_at as ultima_fecha,
-        SUM(CASE WHEN m.tipo='respuesta_entrada' AND m.leido=0 THEN 1 ELSE 0 END) as no_leidos
+        COALESCE((
+          SELECT COUNT(*) FROM message_log ml
+          WHERE ml.patient_id = p.id AND ml.user_id = ? AND ml.tipo='respuesta_entrada' AND ml.leido=0
+        ), 0) as no_leidos
       FROM message_log m
       JOIN patients p ON p.id = m.patient_id
       WHERE m.user_id = ?
-      GROUP BY p.id
+        AND m.id = (
+          SELECT id FROM message_log ml2
+          WHERE ml2.patient_id = p.id AND ml2.user_id = ?
+          ORDER BY ml2.created_at DESC
+          LIMIT 1
+        )
       ORDER BY m.created_at DESC
-    `).all(uid);
+    `).all(uid, uid, uid);
     res.json({ success: true, data: rows });
   } catch (err) {
     console.error('[Messages] Error al obtener conversaciones:', err.message);
