@@ -11,13 +11,44 @@ const { db } = require('../db/database');
 const { sendTemplate, sendConfirmTemplate, getWhatsAppCredentials } = require('./whatsapp');
 
 const VENTANA_TOLERANCIA = 2; // minutos
+const PERU_OFFSET_MS = -5 * 60 * 60 * 1000; // UTC-5
 
-function estaDentroVentana(fechaHoraInicio, minutosAntes) {
-  const ahora      = new Date();
-  const inicioCita = new Date(fechaHoraInicio);
-  const diffMinutos = (inicioCita - ahora) / (1000 * 60);
-  return diffMinutos >= (minutosAntes - VENTANA_TOLERANCIA) &&
-         diffMinutos <= (minutosAntes + VENTANA_TOLERANCIA);
+function toPeruTime(date) {
+  return new Date(date.getTime() + PERU_OFFSET_MS);
+}
+
+// Recordatorio 24h: se envía a las 12:00 PM hora Perú del día anterior a la cita
+function debeEnviar24h(fechaHoraInicio) {
+  const ahoraPeru = toPeruTime(new Date());
+  const citaPeru  = toPeruTime(new Date(fechaHoraInicio));
+
+  const manana = new Date(ahoraPeru);
+  manana.setDate(manana.getDate() + 1);
+  if (citaPeru.toISOString().slice(0, 10) !== manana.toISOString().slice(0, 10)) return false;
+
+  const minActual = ahoraPeru.getHours() * 60 + ahoraPeru.getMinutes();
+  return Math.abs(minActual - 12 * 60) <= VENTANA_TOLERANCIA;
+}
+
+// Recordatorio 4h: exactamente 4h antes en hora Perú.
+// Excepción: cita a las 8 AM o 9 AM → recordatorio a las 7 AM.
+function debeEnviar4h(fechaHoraInicio) {
+  const ahoraPeru = toPeruTime(new Date());
+  const citaPeru  = toPeruTime(new Date(fechaHoraInicio));
+
+  // La cita debe ser hoy en hora Perú
+  if (ahoraPeru.toISOString().slice(0, 10) !== citaPeru.toISOString().slice(0, 10)) return false;
+
+  const minActual = ahoraPeru.getHours() * 60 + ahoraPeru.getMinutes();
+  const horaCita  = citaPeru.getHours();
+
+  if (horaCita === 8 || horaCita === 9) {
+    // Excepción: enviar a las 7:00 AM
+    return Math.abs(minActual - 7 * 60) <= VENTANA_TOLERANCIA;
+  }
+
+  const minCita = citaPeru.getHours() * 60 + citaPeru.getMinutes();
+  return Math.abs(minActual - (minCita - 240)) <= VENTANA_TOLERANCIA;
 }
 
 async function checkAndSendReminders() {
@@ -26,7 +57,7 @@ async function checkAndSendReminders() {
     // Usar prefijo de fecha (YYYY-MM-DD) para comparación robusta sin depender de timezone
     // Buscamos citas en las próximas 26h y últimas 1h (ventana amplia para cubrir diferencias UTC/local)
     const hace1h  = new Date(Date.now() - 1  * 60 * 60 * 1000).toISOString().slice(0, 16);
-    const en26h   = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString().slice(0, 16);
+    const en30h   = new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
     // Incluir user_id del appointment para propagarlo al message_log
     const citas = await knex('appointments as a')
@@ -34,7 +65,7 @@ async function checkAndSendReminders() {
       .select('a.*', 'p.nombre as paciente_nombre', 'p.telefono as paciente_telefono', 'a.user_id')
       .where('a.estado', 'pendiente')
       .andWhere('a.fecha_hora_inicio', '>', hace1h)
-      .andWhere('a.fecha_hora_inicio', '<', en26h)
+      .andWhere('a.fecha_hora_inicio', '<', en30h)
       .andWhere(function() {
         this.where('a.recordatorio_24h_enviado', 0).orWhere('a.recordatorio_4h_enviado', 0);
       });
@@ -42,7 +73,7 @@ async function checkAndSendReminders() {
     if (citas.length === 0) return;
 
     for (const cita of citas) {
-      if (!cita.recordatorio_24h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 1440)) {
+      if (!cita.recordatorio_24h_enviado && debeEnviar24h(cita.fecha_hora_inicio)) {
         // Marcar ANTES de enviar para evitar duplicados si el servicio reinicia
         await knex('appointments').where('id', cita.id).update({
           recordatorio_24h_enviado: 1,
@@ -51,7 +82,7 @@ async function checkAndSendReminders() {
         await enviarRecordatorio(cita, '24h');
       }
 
-      if (!cita.recordatorio_4h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 240)) {
+      if (!cita.recordatorio_4h_enviado && debeEnviar4h(cita.fecha_hora_inicio)) {
         await knex('appointments').where('id', cita.id).update({
           recordatorio_4h_enviado: 1,
           updated_at: knex.fn.now()
