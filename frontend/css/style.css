@@ -72,8 +72,10 @@ a { color: var(--primary); text-decoration: none; }
   height: 100%; display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px;
 }
-.header-brand { display: flex; align-items: center; gap: 8px; }
-.brand-icon { font-size: 22px; }
+.header-brand { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.header-brand:active .brand-icon { animation: spin-once 0.4s ease; }
+@keyframes spin-once { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.brand-icon { font-size: 22px; display: inline-block; }
 .brand-name { font-size: 18px; font-weight: 700; color: var(--primary); letter-spacing: -0.5px; }
 
 .header-nav { display: flex; gap: 4px; }
