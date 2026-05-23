@@ -104,4 +104,14 @@ function sqlNow() {
   return isPg ? `NOW()` : `datetime('now','localtime')`;
 }
 
-module.exports = { db, initializeDatabase, toLocalISO, getSettings, knex, sqlYearMonth, sqlNow };
+/**
+ * Devuelve comparación "columna > ahora" compatible con ambos motores.
+ * En PG castea el TEXT a TIMESTAMP para poder comparar con NOW().
+ */
+function sqlColGtNow(column) {
+  const isPg = (knexConfig[environment].client === 'pg');
+  if (isPg) return `CAST(${column} AS TIMESTAMP) > NOW()`;
+  return `${column} > datetime('now','localtime')`;
+}
+
+module.exports = { db, initializeDatabase, toLocalISO, getSettings, knex, sqlYearMonth, sqlNow, sqlColGtNow };

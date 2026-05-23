@@ -6,7 +6,7 @@
  */
 const express = require('express');
 const router  = express.Router();
-const { db, getSettings, sqlNow } = require('../db/database');
+const { db, getSettings, sqlNow, sqlColGtNow } = require('../db/database');
 const { processPatientResponse } = require('../services/ai');
 const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
 
@@ -111,7 +111,7 @@ router.post('/', (req, res, next) => {
         FROM appointments a JOIN patients p ON p.id = a.patient_id
         WHERE a.patient_id = ?
           AND a.estado IN ('pendiente', 'confirmada')
-          AND a.fecha_hora_inicio > ${sqlNow()}
+          AND ${sqlColGtNow('a.fecha_hora_inicio')}
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);
 
