@@ -55,14 +55,14 @@ const NotifDropdown = {
   },
 
   async open() {
-    document.getElementById('notif-panel')?.classList.add('open');
+    document.getElementById('nav-notif-wrapper')?.classList.add('open');
     this._open = true;
     const res = await api.notifications.list().catch(() => ({ data: [], unread: 0 }));
     this._renderList(res.data || []);
   },
 
   close() {
-    document.getElementById('notif-panel')?.classList.remove('open');
+    document.getElementById('nav-notif-wrapper')?.classList.remove('open');
     this._open = false;
   },
 
