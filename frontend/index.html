@@ -84,9 +84,16 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
         </button>
+        <!-- Búsqueda global -->
+        <button class="nav-btn" id="nav-search" title="Buscar paciente (Ctrl+K)" onclick="GlobalSearch.open()" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+        </button>
+
         <!-- Notificaciones -->
         <div class="nav-dropdown" id="nav-notif-wrapper" style="display:none;">
-          <button class="nav-btn nav-btn--notif" id="nav-notif-btn" title="Notificaciones"
+          <button class="nav-btn" id="nav-notif-btn" title="Notificaciones"
                   onclick="NotifDropdown.toggle(event)" style="position:relative;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -101,7 +108,7 @@
             "></span>
           </button>
           <div class="nav-dropdown-panel" id="notif-panel" role="menu"
-               style="width:320px;max-height:420px;overflow-y:auto;right:0;left:auto;">
+               style="width:min(320px,90vw);max-height:440px;overflow-y:auto;">
             <div style="padding:10px 16px 8px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
               <span style="font-weight:600;font-size:0.9rem;">Notificaciones</span>
               <button onclick="NotifDropdown.markAllRead()" style="font-size:0.75rem;color:var(--primary);background:none;border:none;cursor:pointer;padding:0;">
@@ -113,13 +120,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Búsqueda global -->
-        <button class="nav-btn" id="nav-search" title="Buscar paciente (Ctrl+K)" onclick="GlobalSearch.open()" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
 
         <!-- Ajustes con dropdown -->
         <div class="nav-dropdown" id="nav-dropdown-settings">
