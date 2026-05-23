@@ -9,7 +9,7 @@ const MessagesView = {
 
   _isMobile() { return window.innerWidth < 640; },
 
-  async render(container) {
+  async render(container, openPatientId = null) {
     const mobile = this._isMobile();
     container.innerHTML = `
       <div class="fade-in" id="messages-view" style="height:calc(100vh - 120px);display:flex;flex-direction:column;">
@@ -40,6 +40,7 @@ const MessagesView = {
       </div>`;
 
     await this._loadConversations();
+    if (openPatientId) this._openConversation(openPatientId);
     this._startPolling();
   },
 

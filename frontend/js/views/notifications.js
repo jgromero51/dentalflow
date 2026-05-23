@@ -59,6 +59,7 @@ const NotifDropdown = {
     this._open = true;
     const res = await api.notifications.list().catch(() => ({ data: [], unread: 0 }));
     this._renderList(res.data || []);
+    if (this._unread > 0) this.markAllRead();
   },
 
   close() {
@@ -79,9 +80,7 @@ const NotifDropdown = {
       const tiempo = this._timeAgo(n.created_at);
       const icono  = this._icono(n.mensaje, n.cita_estado);
       const snippet = n.mensaje.length > 55 ? n.mensaje.slice(0, 55) + '…' : n.mensaje;
-      const link   = n.appointment_id
-        ? `onclick="NotifDropdown.close(); Router.navigate('patient/${n.patient_id}')"`
-        : `onclick="NotifDropdown.close(); Router.navigate('messages')"`;
+      const link = `onclick="NotifDropdown.close(); Router.navigate('messages/${n.patient_id}')"`;
 
       return `
         <div class="nav-dropdown-item" role="button" ${link}

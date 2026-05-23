@@ -74,6 +74,9 @@ const Router = {
     if (hash.startsWith('patient/')) {
       routeKey = 'patient';
       routeParams = hash.split('/')[1];
+    } else if (hash.startsWith('messages/')) {
+      routeKey = 'messages';
+      routeParams = hash.split('/')[1];
     } else if (hash.startsWith('reset-password/')) {
       routeKey = 'reset-password';
       routeParams = hash.split('/')[1];
@@ -134,8 +137,8 @@ async function renderSettings(container) {
   await SettingsView.render(container);
 }
 
-async function renderMessages(container) {
-  await MessagesView.render(container);
+async function renderMessages(container, patientId) {
+  await MessagesView.render(container, patientId ? parseInt(patientId) : null);
 }
 
 async function renderLogin(container) {
