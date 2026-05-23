@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router  = express.Router();
-const { db, toLocalISO } = require('../db/database');
+const { db, toLocalISO, sqlYearMonth } = require('../db/database');
 const { sendTemplate }   = require('../services/whatsapp');
 
 function calcularFin(inicioISO, duracionMinutos) {
@@ -122,10 +122,11 @@ router.get('/stats', async (req, res) => {
       return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     });
 
+    const ym = sqlYearMonth('fecha_hora_inicio');
     const [ingresosMes, ingresosMesAnterior, citasMes, deudores, noAsistioMes, totalCitasMesConEstado, ...historialRows] = await Promise.all([
-      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
-      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesAnterior),
-      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
+      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND ${ym}=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
+      db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND ${ym}=? AND estado NOT IN ('cancelada')`).get(uid, mesAnterior),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND ${ym}=? AND estado NOT IN ('cancelada')`).get(uid, mesActual),
       db.prepare(`
         SELECT a.id, a.fecha_hora_inicio, a.costo_estimado, a.monto_pagado,
                (a.costo_estimado - COALESCE(a.monto_pagado,0)) as deuda,
@@ -136,10 +137,10 @@ router.get('/stats', async (req, res) => {
           AND a.estado NOT IN ('cancelada','no_asistio')
         ORDER BY deuda DESC LIMIT 20
       `).all(uid),
-      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado='no_asistio'`).get(uid, mesActual),
-      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado IN ('confirmada','no_asistio')`).get(uid, mesActual),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND ${ym}=? AND estado='no_asistio'`).get(uid, mesActual),
+      db.prepare(`SELECT COUNT(*) as c FROM appointments WHERE user_id=? AND ${ym}=? AND estado IN ('confirmada','no_asistio')`).get(uid, mesActual),
       ...historialMeses.map(m =>
-        db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND strftime('%Y-%m', fecha_hora_inicio)=? AND estado NOT IN ('cancelada')`).get(uid, m)
+        db.prepare(`SELECT COALESCE(SUM(monto_pagado),0) as total FROM appointments WHERE user_id=? AND ${ym}=? AND estado NOT IN ('cancelada')`).get(uid, m)
       ),
     ]);
 

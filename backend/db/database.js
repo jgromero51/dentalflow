@@ -88,4 +88,20 @@ async function getSettings(userId = null) {
   return result;
 }
 
-module.exports = { db, initializeDatabase, toLocalISO, getSettings, knex };
+/**
+ * Devuelve la expresión SQL para formatear una fecha como 'YYYY-MM'
+ * compatible con SQLite (desarrollo) y PostgreSQL (producción).
+ */
+function sqlYearMonth(column) {
+  const isPg = (knexConfig[environment].client === 'pg');
+  if (isPg) return `TO_CHAR(${column}::timestamp, 'YYYY-MM')`;
+  return `strftime('%Y-%m', ${column})`;
+}
+
+/** Devuelve la expresión SQL para la fecha/hora actual según el motor */
+function sqlNow() {
+  const isPg = (knexConfig[environment].client === 'pg');
+  return isPg ? `NOW()` : `datetime('now','localtime')`;
+}
+
+module.exports = { db, initializeDatabase, toLocalISO, getSettings, knex, sqlYearMonth, sqlNow };

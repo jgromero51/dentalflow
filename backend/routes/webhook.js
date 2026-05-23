@@ -6,7 +6,7 @@
  */
 const express = require('express');
 const router  = express.Router();
-const { db, getSettings } = require('../db/database');
+const { db, getSettings, sqlNow } = require('../db/database');
 const { processPatientResponse } = require('../services/ai');
 const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
 
@@ -111,7 +111,7 @@ router.post('/', (req, res, next) => {
         FROM appointments a JOIN patients p ON p.id = a.patient_id
         WHERE a.patient_id = ?
           AND a.estado IN ('pendiente', 'confirmada')
-          AND a.fecha_hora_inicio > datetime('now','localtime')
+          AND a.fecha_hora_inicio > ${sqlNow()}
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);
 
@@ -169,12 +169,12 @@ router.post('/', (req, res, next) => {
 
       // Actualizar estado según intención
       if (intencion === 'confirmar') {
-        await db.prepare("UPDATE appointments SET estado='confirmada', updated_at=datetime('now','localtime') WHERE id=?")
+        await db.prepare("UPDATE appointments SET estado='confirmada', updated_at=${sqlNow()} WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ✅ Cita #${appt.id} CONFIRMADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'confirmar');
       } else if (intencion === 'cancelar') {
-        await db.prepare("UPDATE appointments SET estado='cancelada', updated_at=datetime('now','localtime') WHERE id=?")
+        await db.prepare("UPDATE appointments SET estado='cancelada', updated_at=${sqlNow()} WHERE id=?")
           .run(appt.id);
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'cancelar');
