@@ -108,10 +108,14 @@ function sqlNow() {
  * Devuelve comparación "columna > ahora" compatible con ambos motores.
  * En PG castea el TEXT a TIMESTAMP para poder comparar con NOW().
  */
-function sqlColGtNow(column) {
+function sqlColGtNow(column, bufferHours = 0) {
   const isPg = (knexConfig[environment].client === 'pg');
-  if (isPg) return `CAST(${column} AS TIMESTAMP) > NOW()`;
-  return `${column} > datetime('now','localtime')`;
+  if (isPg) return bufferHours
+    ? `CAST(${column} AS TIMESTAMP) > NOW() - INTERVAL '${bufferHours} hours'`
+    : `CAST(${column} AS TIMESTAMP) > NOW()`;
+  return bufferHours
+    ? `${column} > datetime('now','localtime','-${bufferHours} hours')`
+    : `${column} > datetime('now','localtime')`;
 }
 
 module.exports = { db, initializeDatabase, toLocalISO, getSettings, knex, sqlYearMonth, sqlNow, sqlColGtNow };

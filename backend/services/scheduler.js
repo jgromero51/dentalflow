@@ -23,16 +23,18 @@ function estaDentroVentana(fechaHoraInicio, minutosAntes) {
 async function checkAndSendReminders() {
   const { knex } = require('../db/database');
   try {
-    const ahora = new Date().toISOString();
-    const en25h = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
+    // Usar prefijo de fecha (YYYY-MM-DD) para comparación robusta sin depender de timezone
+    // Buscamos citas en las próximas 26h y últimas 1h (ventana amplia para cubrir diferencias UTC/local)
+    const hace1h  = new Date(Date.now() - 1  * 60 * 60 * 1000).toISOString().slice(0, 16);
+    const en26h   = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
     // Incluir user_id del appointment para propagarlo al message_log
     const citas = await knex('appointments as a')
       .join('patients as p', 'a.patient_id', 'p.id')
       .select('a.*', 'p.nombre as paciente_nombre', 'p.telefono as paciente_telefono', 'a.user_id')
       .where('a.estado', 'pendiente')
-      .andWhere('a.fecha_hora_inicio', '>', ahora)
-      .andWhere('a.fecha_hora_inicio', '<', en25h)
+      .andWhere('a.fecha_hora_inicio', '>', hace1h)
+      .andWhere('a.fecha_hora_inicio', '<', en26h)
       .andWhere(function() {
         this.where('a.recordatorio_24h_enviado', 0).orWhere('a.recordatorio_4h_enviado', 0);
       });
@@ -41,19 +43,20 @@ async function checkAndSendReminders() {
 
     for (const cita of citas) {
       if (!cita.recordatorio_24h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 1440)) {
-        await enviarRecordatorio(cita, '24h');
+        // Marcar ANTES de enviar para evitar duplicados si el servicio reinicia
         await knex('appointments').where('id', cita.id).update({
           recordatorio_24h_enviado: 1,
           updated_at: knex.fn.now()
         });
+        await enviarRecordatorio(cita, '24h');
       }
 
       if (!cita.recordatorio_4h_enviado && estaDentroVentana(cita.fecha_hora_inicio, 240)) {
-        await enviarRecordatorio(cita, '4h');
         await knex('appointments').where('id', cita.id).update({
           recordatorio_4h_enviado: 1,
           updated_at: knex.fn.now()
         });
+        await enviarRecordatorio(cita, '4h');
       }
     }
   } catch (err) {

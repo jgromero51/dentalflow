@@ -111,7 +111,7 @@ router.post('/', (req, res, next) => {
         FROM appointments a JOIN patients p ON p.id = a.patient_id
         WHERE a.patient_id = ?
           AND a.estado IN ('pendiente', 'confirmada')
-          AND ${sqlColGtNow('a.fecha_hora_inicio')}
+          AND ${sqlColGtNow('a.fecha_hora_inicio', 6)}
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);
 
