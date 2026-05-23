@@ -153,7 +153,8 @@ const remoteApi = {
     create:      (data)       => remoteApi.request('POST',   '/proformas', data),
     update:      (id, data)   => remoteApi.request('PUT',    `/proformas/${id}`, data),
     remove:      (id)         => remoteApi.request('DELETE', `/proformas/${id}`),
-    sendWhatsApp:(id)         => remoteApi.request('POST',   `/proformas/${id}/send-whatsapp`),
+    sendWhatsApp:   (id) => remoteApi.request('POST', `/proformas/${id}/send-whatsapp`),
+    sendWhatsAppPdf:(id) => remoteApi.request('POST', `/proformas/${id}/send-whatsapp-pdf`),
   },
 
   catalog: {

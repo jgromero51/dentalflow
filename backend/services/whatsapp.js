@@ -141,6 +141,63 @@ async function replyMessage(telefono, mensaje) {
 }
 
 /**
+ * Sube un archivo a WhatsApp Media API y devuelve el media_id
+ */
+async function uploadMedia(buffer, filename, mimeType) {
+  if (DEMO_MODE || !WA_TOKEN || WA_TOKEN === 'EAAxxxxxxxxxx') {
+    return { success: true, mediaId: 'demo_media_id', demo: true };
+  }
+  try {
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('file', buffer, { filename, contentType: mimeType });
+    form.append('type', mimeType);
+    form.append('messaging_product', 'whatsapp');
+
+    const uploadUrl = `https://graph.facebook.com/v19.0/${WA_PHONE_ID}/media`;
+    const res = await axios.post(uploadUrl, form, {
+      headers: { 'Authorization': 'Bearer ' + WA_TOKEN, ...form.getHeaders() },
+      timeout: 30000,
+    });
+    return { success: true, mediaId: res.data.id };
+  } catch (err) {
+    const errorMsg = err.response?.data?.error?.message || err.message;
+    console.error('[WhatsApp] Error upload media:', errorMsg);
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Envía un documento (PDF) ya subido a WhatsApp
+ */
+async function sendDocument(telefono, mediaId, filename, caption = '') {
+  const to = normalizarTelefono(telefono);
+
+  if (DEMO_MODE || !WA_TOKEN || WA_TOKEN === 'EAAxxxxxxxxxx') {
+    console.log(`[WhatsApp Demo] Documento a +${to} | ${filename}`);
+    return { success: true, demo: true };
+  }
+
+  try {
+    const res = await axios.post(WA_API_BASE, {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'document',
+      document: { id: mediaId, filename, caption },
+    }, { headers: headers(), timeout: 15000 });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    console.log(`[WhatsApp] Documento enviado a +${to} - ID: ${messageId}`);
+    return { success: true, messageId };
+  } catch (err) {
+    const fullError = err.response?.data || err.message;
+    const errorMsg  = err.response?.data?.error?.message || err.message;
+    console.error(`[WhatsApp] Error documento a +${to}:`, JSON.stringify(fullError));
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
  * Envía el template de reactivación de paciente inactivo
  * Variables: {{nombre}}, {{clinica}}
  */
@@ -181,4 +238,4 @@ async function sendRecallTemplate(telefono, { nombre, clinica }) {
   }
 }
 
-module.exports = { sendMessage, sendTemplate, sendConfirmTemplate, replyMessage, sendRecallTemplate };
+module.exports = { sendMessage, sendTemplate, sendConfirmTemplate, replyMessage, sendRecallTemplate, uploadMedia, sendDocument };

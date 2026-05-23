@@ -4,7 +4,9 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
-const { sendMessage } = require('../services/whatsapp');
+const { sendMessage, uploadMedia, sendDocument } = require('../services/whatsapp');
+const { generateProformaPDF } = require('../services/pdf');
+const { getSettings } = require('../db/database');
 
 // GET /api/proformas?patient_id=X
 router.get('/', async (req, res) => {
@@ -98,6 +100,54 @@ router.post('/:id/send-whatsapp', async (req, res) => {
       res.status(500).json({ error: result.error || 'Error al enviar WhatsApp' });
     }
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/proformas/:id/send-whatsapp-pdf — genera PDF y lo envía como documento
+router.post('/:id/send-whatsapp-pdf', async (req, res) => {
+  try {
+    const row = await db.prepare(
+      `SELECT p.*, pa.nombre as paciente_nombre, pa.telefono as paciente_telefono,
+              pa.dni as paciente_dni
+       FROM proformas p JOIN patients pa ON pa.id = p.patient_id
+       WHERE p.id = ? AND p.user_id = ?`
+    ).get(req.params.id, req.user.id);
+
+    if (!row) return res.status(404).json({ error: 'Proforma no encontrada' });
+    if (!row.paciente_telefono) return res.status(400).json({ error: 'El paciente no tiene teléfono' });
+
+    const settings = await getSettings(req.user.id);
+    const patient  = { nombre: row.paciente_nombre, telefono: row.paciente_telefono, dni: row.paciente_dni };
+    const pf       = { ...row, items: JSON.parse(row.items_json || '[]') };
+
+    // 1. Generar PDF
+    const pdfBuffer = await generateProformaPDF(pf, patient, settings);
+
+    // 2. Subir a WhatsApp Media
+    const filename  = `Proforma_${row.paciente_nombre.replace(/\s+/g, '_')}_${row.id}.pdf`;
+    const uploadRes = await uploadMedia(pdfBuffer, filename, 'application/pdf');
+    if (!uploadRes.success) return res.status(500).json({ error: uploadRes.error });
+
+    // 3. Enviar como documento
+    const clinica = settings.clinic_name || 'tu clinica';
+    const caption = `🦷 Presupuesto de tratamiento de ${clinica}`;
+    let sendRes;
+
+    if (uploadRes.demo) {
+      sendRes = { success: true, demo: true };
+    } else {
+      sendRes = await sendDocument(row.paciente_telefono, uploadRes.mediaId, filename, caption);
+    }
+
+    if (sendRes.success) {
+      await db.prepare(`UPDATE proformas SET estado='enviada', updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
+      res.json({ success: true, demo: sendRes.demo || false });
+    } else {
+      res.status(500).json({ error: sendRes.error || 'Error al enviar' });
+    }
+  } catch (err) {
+    console.error('[Proformas] Error send-whatsapp-pdf:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

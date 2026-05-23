@@ -632,14 +632,18 @@ const PatientDetailView = {
               <button onclick="PatientDetailView._deleteProforma(${pf.id})"
                 style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>
             </div>
-            <div style="display:flex;gap:8px;padding:0 12px 10px;">
-              <button class="btn btn-secondary btn-sm" style="flex:1;"
+            <div style="display:flex;gap:6px;padding:0 12px 10px;flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.printProformaById(${pf.id}, ${itemsAttr}, '${notasAttr}', ${parseFloat(pf.total)})">
                 📄 Ver PDF
               </button>
-              <button class="btn btn-primary btn-sm" style="flex:1;"
+              <button class="btn btn-secondary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.sendProformaWhatsAppConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
-                📱 Enviar WhatsApp
+                💬 WA Texto
+              </button>
+              <button class="btn btn-primary btn-sm" style="flex:1;min-width:90px;"
+                onclick="PatientDetailView.sendProformaPdfConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
+                📎 WA PDF
               </button>
             </div>
           </div>`;
@@ -760,18 +764,25 @@ const PatientDetailView = {
   },
 
   async sendProformaWhatsAppConfirm(id, nombre, total) {
-    const ok = confirm(`¿Enviar la proforma por WhatsApp a ${nombre}?\n\nTotal: S/ ${parseFloat(total).toFixed(2)}\n\nEl paciente recibirá el detalle de los tratamientos en su WhatsApp.`);
-    if (!ok) return;
+    if (!confirm(`¿Enviar la proforma por WhatsApp a ${nombre}?\n\nTotal: S/ ${parseFloat(total).toFixed(2)}\n\nEl paciente recibirá el detalle de los tratamientos en su WhatsApp.`)) return;
     try {
       const res = await api.proformas.sendWhatsApp(id);
-      if (res.demo) {
-        Toast.warning('Modo demo: no se envió realmente.');
-      } else {
-        Toast.success('✅ Presupuesto enviado por WhatsApp.');
-        this.loadProformaHistory();
-      }
+      if (res.demo) Toast.warning('Modo demo: no se envió realmente.');
+      else { Toast.success('✅ Presupuesto enviado por WhatsApp.'); this.loadProformaHistory(); }
     } catch (err) {
       Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async sendProformaPdfConfirm(id, nombre, total) {
+    if (!confirm(`¿Enviar la proforma como PDF por WhatsApp a ${nombre}?\n\nTotal: S/ ${parseFloat(total).toFixed(2)}\n\nEl paciente recibirá el PDF profesional con los datos de la clínica.`)) return;
+    try {
+      Toast.info?.('Generando PDF...');
+      const res = await api.proformas.sendWhatsAppPdf(id);
+      if (res.demo) Toast.warning('Modo demo: no se envió realmente.');
+      else { Toast.success('✅ PDF enviado por WhatsApp.'); this.loadProformaHistory(); }
+    } catch (err) {
+      Toast.error('Error al enviar PDF: ' + err.message);
     }
   },
 
