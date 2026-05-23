@@ -24,6 +24,7 @@ const catalogRouter          = require('./routes/catalog');
 const proformasRouter        = require('./routes/proformas');
 const clinicRouter           = require('./routes/clinic');
 const recallRouter           = require('./routes/recall');
+const notificationsRouter    = require('./routes/notifications');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -75,7 +76,8 @@ app.use('/api/odontogram',   requireAuth, odontogramRouter);
 app.use('/api/catalog',      requireAuth, catalogRouter);
 app.use('/api/proformas',    requireAuth, proformasRouter);
 app.use('/api/clinic',       requireAuth, clinicRouter);
-app.use('/api/recall',       requireAuth, recallRouter);
+app.use('/api/recall',         requireAuth, recallRouter);
+app.use('/api/notifications',  requireAuth, notificationsRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

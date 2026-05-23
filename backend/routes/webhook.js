@@ -74,7 +74,7 @@ router.post('/', async (req, res) => {
         SELECT a.*, p.nombre as paciente_nombre
         FROM appointments a JOIN patients p ON p.id = a.patient_id
         WHERE a.patient_id = ?
-          AND a.estado = 'pendiente'
+          AND a.estado IN ('pendiente', 'confirmada')
           AND a.fecha_hora_inicio > datetime('now','localtime')
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);

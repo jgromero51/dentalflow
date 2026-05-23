@@ -382,7 +382,10 @@ async function init() {
   _resolveInit();
 
   // Cargar nombre de clínica en el header si está logueado
-  if (Auth.isLoggedIn()) loadClinicName();
+  if (Auth.isLoggedIn()) {
+    loadClinicName();
+    NotifDropdown.init();
+  }
 
   await Router.handleRoute();
 }
