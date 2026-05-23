@@ -125,7 +125,24 @@ const SettingsView = {
         </div>
         <div class="settings-card">
           <div class="form-hint" style="margin-bottom:14px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--primary);">
-            Integrado con <strong>WhatsApp Cloud API (Meta)</strong>. Los recordatorios se envían usando la plantilla <code>recordatorio_cita</code>.
+            Integrado con <strong>WhatsApp Cloud API (Meta)</strong>. Cada clínica puede tener su propio número de WhatsApp.
+            <a href="https://developers.facebook.com/apps" target="_blank" style="color:var(--primary);font-size:11px;display:block;margin-top:4px;">→ Obtener credenciales en Meta for Developers</a>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label" for="s-wa-phone-id">Phone Number ID</label>
+              <input id="s-wa-phone-id" class="form-control" type="text"
+                placeholder="Ej: 123456789012345"
+                value="${this._esc(s.whatsapp_phone_id)}" />
+              <div class="form-hint">Desde Meta for Developers → tu app → WhatsApp → API Setup</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="s-wa-token">Access Token</label>
+              <input id="s-wa-token" class="form-control" type="password"
+                placeholder="EAAxxxxxxxxxx..."
+                value="${this._esc(s.whatsapp_token)}" autocomplete="new-password" />
+              <div class="form-hint">Token permanente desde Meta Business Suite</div>
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label" for="s-doctor-phone">Tu número personal (para pruebas)</label>
@@ -256,6 +273,23 @@ const SettingsView = {
         </div>
       </div>` : ''}
 
+      <!-- Sección: Backup -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">💾</span>
+          Copia de Seguridad
+        </div>
+        <div class="settings-card">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">
+            Descargá todos tus datos (pacientes, citas, proformas) en formato JSON. Guardalo en un lugar seguro.
+            El sistema también realiza backups automáticos cada 6 horas.
+          </p>
+          <button class="btn btn-ghost btn-full" onclick="SettingsView._downloadBackup()" style="border:1px dashed var(--border);">
+            ⬇️ Descargar backup completo
+          </button>
+        </div>
+      </div>
+
       <!-- Cerrar sesión -->
       <button class="btn btn-danger btn-full" onclick="logout()" style="margin-bottom:40px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;">
@@ -299,7 +333,13 @@ const SettingsView = {
       reminder_24h_active:  this._settings.reminder_24h_active ?? 'true',
       reminder_4h_active:   this._settings.reminder_4h_active  ?? 'true',
       doctor_phone:         get('s-doctor-phone'),
+      whatsapp_phone_id:    get('s-wa-phone-id'),
+      whatsapp_token:       get('s-wa-token'),
     };
+
+    // No enviar token vacío (no borrar el guardado)
+    if (!payload.whatsapp_token) delete payload.whatsapp_token;
+    if (!payload.whatsapp_phone_id) delete payload.whatsapp_phone_id;
 
     if (!payload.clinic_name) {
       Toast.error('El nombre de la clínica es obligatorio.');
@@ -626,6 +666,26 @@ const SettingsView = {
       this.renderTeam();
     } catch (err) {
       Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async _downloadBackup() {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+      const res = await fetch('/api/admin/backup', {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      if (!res.ok) throw new Error('Sin permisos de administrador');
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `dentalflow_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      Toast.success('✅ Backup descargado correctamente.');
+    } catch (err) {
+      Toast.error('Error al descargar backup: ' + err.message);
     }
   },
 

@@ -8,7 +8,7 @@ const express = require('express');
 const router  = express.Router();
 const { db, getSettings } = require('../db/database');
 const { processPatientResponse } = require('../services/ai');
-const { sendMessage }            = require('../services/whatsapp');
+const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
 
 // GET /api/webhook — Verificación inicial de Meta
 router.get('/', async (req, res) => {
@@ -92,7 +92,8 @@ router.post('/', (req, res, next) => {
 
           if (!yaEnviada) {
             const welcomeMsg = await buildWelcomeMessage(adminUser.id);
-            await sendMessage(telefonoFormateado, welcomeMsg);
+            const adminCreds = await getWhatsAppCredentials(adminUser.id);
+            await sendMessage(telefonoFormateado, welcomeMsg, adminCreds);
             await db.prepare(`
               INSERT INTO message_log (user_id, tipo, mensaje, enviado)
               VALUES (?, 'bienvenida', ?, 1)
@@ -150,7 +151,8 @@ router.post('/', (req, res, next) => {
 
         console.log(`[Webhook] Sin cita pendiente para ${patient.nombre} — enviando bienvenida`);
         const welcomeMsg = await buildWelcomeMessage(userId);
-        await sendMessage(telefonoFormateado, welcomeMsg);
+        const userCreds = await getWhatsAppCredentials(userId);
+        await sendMessage(telefonoFormateado, welcomeMsg, userCreds);
 
         await db.prepare(`
           INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
@@ -158,6 +160,9 @@ router.post('/', (req, res, next) => {
         `).run(patient.id, userId, welcomeMsg);
         continue;
       }
+
+      // Credenciales del usuario dueño de la cita (multi-tenant)
+      const userCreds = await getWhatsAppCredentials(userId);
 
       // Procesar respuesta con IA
       const { intencion, respuesta } = await processPatientResponse(text, appt);
@@ -173,11 +178,16 @@ router.post('/', (req, res, next) => {
           .run(appt.id);
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'cancelar');
+      } else {
+        // Mensaje general: avisar que el doctor se contactará
+        if (respuesta) {
+          respuesta += '\n\nSi tenés alguna consulta adicional, el doctor se comunicará con vos en breve. 👨‍⚕️';
+        }
       }
 
       // Enviar respuesta automática
       if (respuesta) {
-        await sendMessage(telefonoFormateado, respuesta);
+        await sendMessage(telefonoFormateado, respuesta, userCreds);
         await db.prepare(`
           INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
           VALUES (?, ?, ?, 'respuesta_salida', ?, 1)

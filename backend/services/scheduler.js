@@ -8,7 +8,7 @@
 require('dotenv').config();
 const cron   = require('node-cron');
 const { db } = require('../db/database');
-const { sendTemplate, sendConfirmTemplate } = require('./whatsapp');
+const { sendTemplate, sendConfirmTemplate, getWhatsAppCredentials } = require('./whatsapp');
 
 const VENTANA_TOLERANCIA = 2; // minutos
 
@@ -75,13 +75,16 @@ async function enviarRecordatorio(cita, tipo) {
 
     // 24h → recordatorio_cita (recuerda la cita de mañana)
     // 4h  → confirmacion_cita (confirma la cita de hoy)
+    // Usar credenciales de WhatsApp del usuario dueño de la cita (multi-tenant)
+    const creds = await getWhatsAppCredentials(cita.user_id);
+
     let result;
     let templateUsado;
     if (tipo === '24h') {
-      result = await sendTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, fecha, hora });
+      result = await sendTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, fecha, hora }, creds);
       templateUsado = 'recordatorio_cita';
     } else {
-      result = await sendConfirmTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, hora });
+      result = await sendConfirmTemplate(cita.paciente_telefono, { nombre: cita.paciente_nombre, clinica, hora }, creds);
       templateUsado = 'confirmacion_cita';
     }
 
@@ -108,12 +111,70 @@ async function enviarRecordatorio(cita, tipo) {
   }
 }
 
+// ============================================================
+// BACKUP AUTOMÁTICO — exporta datos críticos a JSON cada 6 horas
+// ============================================================
+async function runBackup() {
+  const fs   = require('fs');
+  const path = require('path');
+
+  try {
+    const { knex } = require('../db/database');
+    const backupDir = path.join(__dirname, '../../backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+
+    const [patients, appointments, users, settings, proformas] = await Promise.all([
+      knex('patients').select('*'),
+      knex('appointments').select('*'),
+      knex('users').select('id', 'username', 'role', 'email', 'clinic_id', 'created_at', 'last_login'),
+      knex('settings').select('*'),
+      knex.schema.hasTable('proformas').then(has => has ? knex('proformas').select('*') : []),
+    ]);
+
+    const payload = {
+      exported_at: new Date().toISOString(),
+      counts: { patients: patients.length, appointments: appointments.length, users: users.length },
+      patients,
+      appointments,
+      users,
+      settings,
+      proformas,
+    };
+
+    const filename = `backup_${new Date().toISOString().slice(0,10)}.json`;
+    const filepath = path.join(backupDir, filename);
+    fs.writeFileSync(filepath, JSON.stringify(payload, null, 2));
+
+    // Conservar solo los últimos 10 backups
+    const files = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith('backup_') && f.endsWith('.json'))
+      .sort();
+    if (files.length > 10) {
+      files.slice(0, files.length - 10).forEach(f => {
+        try { fs.unlinkSync(path.join(backupDir, f)); } catch (_) {}
+      });
+    }
+
+    console.log(`[Backup] ✅ Backup guardado: ${filename} (${patients.length} pacientes, ${appointments.length} citas)`);
+  } catch (err) {
+    console.error('[Backup] ❌ Error en backup:', err.message);
+  }
+}
+
 function startScheduler() {
   cron.schedule('* * * * *', () => {
     checkAndSendReminders();
   });
+
+  // Backup automático cada 6 horas
+  cron.schedule('0 */6 * * *', () => {
+    runBackup();
+  });
+
   console.log('[Scheduler] Scheduler de recordatorios iniciado (cada minuto)');
+  console.log('[Scheduler] Backup automático configurado (cada 6 horas)');
   setTimeout(() => checkAndSendReminders(), 5000);
+  setTimeout(() => runBackup(), 15000); // primer backup 15s después de arrancar
 }
 
 module.exports = { startScheduler, checkAndSendReminders, enviarRecordatorio };

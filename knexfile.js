@@ -14,13 +14,15 @@ module.exports = {
   },
 
   production: {
-    client: 'sqlite3',
+    client: 'pg',
     connection: {
-      filename: process.env.DB_PATH || path.join(__dirname, 'backend', 'db', 'dentalflow.db')
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
     },
-    useNullAsDefault: true,
+    pool: { min: 2, max: 10 },
     migrations: {
       directory: path.join(__dirname, 'backend', 'db', 'migrations')
-    }
+    },
+    acquireConnectionTimeout: 10000,
   }
 };

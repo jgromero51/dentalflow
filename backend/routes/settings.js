@@ -27,6 +27,8 @@ router.post('/', async (req, res) => {
     'clinic_name', 'clinic_phone', 'clinic_address', 'clinic_email',
     'clinic_hours', 'clinic_welcome_msg', 'reminder_24h_active', 'reminder_4h_active',
     'doctor_phone', 'clinic_ruc', 'doctor_name', 'proforma_validez_dias',
+    'whatsapp_phone_id', 'whatsapp_token',   // credenciales WhatsApp por clínica
+    'clinic_logo_url', 'moneda',             // extras útiles
   ];
   const uid = req.user.id;
   try {

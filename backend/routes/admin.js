@@ -63,4 +63,41 @@ router.get('/system-stats', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/admin/backup
+ * Descarga un JSON con todos los datos del sistema.
+ */
+router.get('/backup', async (req, res) => {
+  try {
+    const { knex } = require('../db/database');
+    const [patients, appointments, users, settings, proformas] = await Promise.all([
+      knex('patients').select('*'),
+      knex('appointments').select('*'),
+      knex('users').select('id', 'username', 'role', 'email', 'clinic_id', 'created_at', 'last_login'),
+      knex('settings').select('user_id', 'key', 'value'),
+      knex.schema.hasTable('proformas').then(has => has ? knex('proformas').select('*') : []),
+    ]);
+
+    const payload = {
+      exported_at: new Date().toISOString(),
+      version: '1.0',
+      counts: { patients: patients.length, appointments: appointments.length, users: users.length },
+      patients,
+      appointments,
+      users,
+      proformas,
+      // No exportamos tokens de WhatsApp por seguridad
+      settings: settings.filter(s => s.key !== 'whatsapp_token'),
+    };
+
+    const filename = `dentalflow_backup_${new Date().toISOString().slice(0,10)}.json`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/json');
+    res.json(payload);
+    console.log(`[Admin] Backup descargado: ${patients.length} pacientes`);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
