@@ -60,11 +60,26 @@ router.post('/', async (req, res) => {
 
       if (!patient) {
         console.log(`[Webhook] Paciente no registrado: ${telefonoFormateado}`);
-        // Responder con mensaje de bienvenida del primer usuario admin
         const adminUser = await db.prepare(`SELECT id FROM users ORDER BY id ASC LIMIT 1`).get();
         if (adminUser) {
-          const welcomeMsg = await buildWelcomeMessage(adminUser.id);
-          await sendMessage(telefonoFormateado, welcomeMsg);
+          const COOLDOWN_HORAS = 4;
+          const corte = new Date(Date.now() - COOLDOWN_HORAS * 60 * 60 * 1000).toISOString();
+          const yaEnviada = await db.prepare(`
+            SELECT id FROM message_log
+            WHERE tipo = 'bienvenida' AND mensaje LIKE ? AND created_at > ?
+            LIMIT 1
+          `).get(`%${sinPlus.slice(-9)}%`, corte);
+
+          if (!yaEnviada) {
+            const welcomeMsg = await buildWelcomeMessage(adminUser.id);
+            await sendMessage(telefonoFormateado, welcomeMsg);
+            await db.prepare(`
+              INSERT INTO message_log (user_id, tipo, mensaje, enviado)
+              VALUES (?, 'bienvenida', ?, 1)
+            `).run(adminUser.id, `[${telefonoFormateado}] ${welcomeMsg}`);
+          } else {
+            console.log(`[Webhook] Bienvenida ya enviada a ${telefonoFormateado} hace menos de ${COOLDOWN_HORAS}h — omitiendo`);
+          }
         }
         continue;
       }
@@ -98,11 +113,29 @@ router.post('/', async (req, res) => {
         VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
       `).run(appt?.id || null, patient.id, userId, text);
 
-      // Sin cita pendiente → responder con mensaje de bienvenida
+      // Sin cita pendiente → responder con mensaje de bienvenida (máx 1 vez cada 4h)
       if (!appt) {
+        const COOLDOWN_HORAS = 4;
+        const corte = new Date(Date.now() - COOLDOWN_HORAS * 60 * 60 * 1000).toISOString();
+        const enviada = await db.prepare(`
+          SELECT id FROM message_log
+          WHERE patient_id = ? AND tipo = 'bienvenida' AND created_at > ?
+          LIMIT 1
+        `).get(patient.id, corte);
+
+        if (enviada) {
+          console.log(`[Webhook] Bienvenida ya enviada hace menos de ${COOLDOWN_HORAS}h a ${patient.nombre} — omitiendo`);
+          continue;
+        }
+
         console.log(`[Webhook] Sin cita pendiente para ${patient.nombre} — enviando bienvenida`);
         const welcomeMsg = await buildWelcomeMessage(userId);
         await sendMessage(telefonoFormateado, welcomeMsg);
+
+        await db.prepare(`
+          INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
+          VALUES (?, ?, 'bienvenida', ?, 1)
+        `).run(patient.id, userId, welcomeMsg);
         continue;
       }
 
