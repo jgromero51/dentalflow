@@ -37,7 +37,7 @@ router.post('/', (req, res, next) => {
     const crypto = require('crypto');
     const expected = 'sha256=' + crypto
       .createHmac('sha256', APP_SECRET)
-      .update(JSON.stringify(req.body))
+      .update(req.rawBody || Buffer.from(JSON.stringify(req.body)))
       .digest('hex');
     if (signature !== expected) {
       console.warn('[Webhook] ⚠️ Firma inválida — posible petición falsificada');
