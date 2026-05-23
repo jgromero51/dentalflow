@@ -10,7 +10,20 @@ const CalendarComponent = {
   render(containerId, onSelect) {
     this.onDateSelect = onSelect;
     this.selectedDate = this.selectedDate || new Date();
+    this._renderGen = 0;
     this.renderCalendar(containerId);
+    this._reloadOccupied(containerId);
+  },
+
+  _reloadOccupied(containerId) {
+    // Cancelar renders anteriores en vuelo con un contador de generación
+    this._renderGen = (this._renderGen || 0) + 1;
+    const gen = this._renderGen;
+    const d = this.currentDate;
+    this.renderCalendar(containerId); // render inmediato sin puntos
+    this.loadOccupied(d.getFullYear(), d.getMonth() + 1).then(() => {
+      if (this._renderGen === gen) this.renderCalendar(containerId); // solo si sigue vigente
+    });
   },
 
   async loadOccupied(year, month) {
@@ -96,15 +109,11 @@ const CalendarComponent = {
     // Event listeners
     container.querySelector('#cal-prev').addEventListener('click', () => {
       this.currentDate = new Date(year, month - 1, 1);
-      this.renderCalendar(containerId);
-      this.loadOccupied(this.currentDate.getFullYear(), this.currentDate.getMonth()+1)
-        .then(() => this.renderCalendar(containerId));
+      this._reloadOccupied(containerId);
     });
     container.querySelector('#cal-next').addEventListener('click', () => {
       this.currentDate = new Date(year, month + 1, 1);
-      this.renderCalendar(containerId);
-      this.loadOccupied(this.currentDate.getFullYear(), this.currentDate.getMonth()+1)
-        .then(() => this.renderCalendar(containerId));
+      this._reloadOccupied(containerId);
     });
     container.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
       cell.addEventListener('click', () => {
@@ -114,8 +123,6 @@ const CalendarComponent = {
         if (this.onDateSelect) this.onDateSelect(date);
       });
     });
-
-    this.loadOccupied(year, month+1).then(() => this.renderCalendar(containerId));
   }
 };
 window.CalendarComponent = CalendarComponent;
