@@ -617,17 +617,31 @@ const PatientDetailView = {
         const estado = pf.estado === 'enviada'
           ? `<span style="background:#238636;color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;">Enviada</span>`
           : `<span style="background:var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;font-size:11px;">Borrador</span>`;
+        const itemsAttr = JSON.stringify(pf.items).replace(/"/g,'&quot;');
+        const notasAttr = (pf.notas||'').replace(/'/g,"\\'");
         return `
-          <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-primary);">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Proforma #${pf.id} — S/ ${parseFloat(pf.total).toFixed(2)}</div>
-              <div style="font-size:11px;color:var(--text-muted);">${fecha} · ${pf.items?.length || 0} ítem(s)</div>
+          <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-primary);overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Proforma #${pf.id} — S/ ${parseFloat(pf.total).toFixed(2)}</div>
+                <div style="font-size:11px;color:var(--text-muted);">${fecha} · ${pf.items?.length || 0} ítem(s)</div>
+              </div>
+              ${estado}
+              <button onclick="PatientDetailView.openProforma(${pf.id}, ${itemsAttr}, '${notasAttr}')"
+                style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 4px;" title="Editar">✏️</button>
+              <button onclick="PatientDetailView._deleteProforma(${pf.id})"
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>
             </div>
-            ${estado}
-            <button onclick="PatientDetailView.openProforma(${pf.id}, ${JSON.stringify(pf.items).replace(/"/g,'&quot;')}, '${(pf.notas||'').replace(/'/g,"\\'")}')"
-              style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 4px;" title="Editar">✏️</button>
-            <button onclick="PatientDetailView._deleteProforma(${pf.id})"
-              style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>
+            <div style="display:flex;gap:8px;padding:0 12px 10px;">
+              <button class="btn btn-secondary btn-sm" style="flex:1;"
+                onclick="PatientDetailView.printProformaById(${pf.id}, ${itemsAttr}, '${notasAttr}', ${parseFloat(pf.total)})">
+                📄 Ver PDF
+              </button>
+              <button class="btn btn-primary btn-sm" style="flex:1;"
+                onclick="PatientDetailView.sendProformaWhatsAppConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
+                📱 Enviar WhatsApp
+              </button>
+            </div>
           </div>`;
       }).join('');
     } catch (err) {
@@ -641,6 +655,118 @@ const PatientDetailView = {
       await api.proformas.remove(id);
       Toast.success('Eliminada.');
       this.loadProformaHistory();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async printProformaById(id, items, notas, total) {
+    const p = this.patient;
+    let clinica = {}, doctorNombre = '', ruc = '', direccion = '', telefono = '', email = '', validezDias = 15;
+    try {
+      const res = await api.settings.get();
+      clinica = res.data || {};
+      doctorNombre = clinica.doctor_name || '';
+      ruc          = clinica.clinic_ruc  || '';
+      direccion    = clinica.clinic_address || '';
+      telefono     = clinica.clinic_phone   || '';
+      email        = clinica.clinic_email   || '';
+      validezDias  = parseInt(clinica.proforma_validez_dias) || 15;
+    } catch (_) {}
+
+    const clinicaNombre = clinica.clinic_name || 'Consultorio Dental';
+    const fecha = new Date().toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+    const validezFecha = new Date(Date.now() + validezDias * 86400000)
+      .toLocaleDateString('es-PE', { day:'2-digit', month:'long', year:'numeric' });
+
+    const itemsHTML = items.map((it, i) => `
+      <tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+        <td style="text-align:center;color:#6b7280;padding:9px 10px;">${i + 1}</td>
+        <td style="padding:9px 12px;">${it.nombre || it.desc || ''}</td>
+        <td style="padding:9px 12px;text-align:right;font-weight:500;">S/ ${parseFloat(it.precio).toFixed(2)}</td>
+      </tr>`).join('');
+
+    // Reutiliza el mismo HTML de printProforma()
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+    <title>Proforma #${id} — ${p.nombre}</title>
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { font-family: Arial, Helvetica, sans-serif; color:#1a1a1a; background:#fff; padding:32px 40px; font-size:13px; }
+      .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; padding-bottom:16px; border-bottom:3px solid #1a6fc4; }
+      .clinic-name { font-size:22px; font-weight:800; color:#1a6fc4; }
+      .clinic-sub  { font-size:11px; color:#555; margin-top:3px; line-height:1.6; }
+      .badge-proforma { background:#1a6fc4; color:#fff; font-size:13px; font-weight:700; padding:5px 16px; border-radius:4px; display:inline-block; margin-bottom:6px; }
+      .ruc-box { font-size:11px; color:#555; }
+      .ruc-box strong { color:#1a1a1a; font-size:12px; }
+      .doc-title { text-align:center; font-size:15px; font-weight:700; letter-spacing:2px; color:#1a6fc4; background:#eef4fc; padding:8px; margin-bottom:16px; border:1px solid #c2d9f0; }
+      .patient-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 20px; background:#f7f9fc; border:1px solid #dde5f0; border-radius:6px; padding:12px 16px; margin-bottom:18px; }
+      .patient-grid .label { font-size:10px; color:#888; text-transform:uppercase; font-weight:600; }
+      .patient-grid .value { font-size:13px; color:#1a1a1a; font-weight:600; border-bottom:1px solid #d0d8e8; padding-bottom:2px; }
+      table { width:100%; border-collapse:collapse; font-size:13px; }
+      thead tr { background:#1a6fc4; color:#fff; }
+      thead th { padding:9px 12px; font-weight:700; font-size:12px; }
+      thead th:first-child { width:40px; text-align:center; }
+      thead th:last-child  { text-align:right; width:110px; }
+      .row-even { background:#fff; } .row-odd { background:#f4f7fd; }
+      td { border-bottom:1px solid #e2e8f0; }
+      .total-row td { background:#1a6fc4; color:#fff; font-weight:700; font-size:14px; padding:11px 12px; border:none; }
+      .total-row td:last-child { text-align:right; }
+      .notas { margin-top:14px; background:#fffbea; border-left:3px solid #f59e0b; padding:9px 14px; border-radius:0 6px 6px 0; font-size:12px; color:#555; }
+      .validez { margin-top:12px; font-size:11px; color:#888; font-style:italic; text-align:center; }
+      .firma-row { display:flex; justify-content:flex-end; margin-top:36px; }
+      .firma-box { text-align:center; width:220px; }
+      .firma-line { border-top:1.5px solid #1a1a1a; margin-bottom:6px; }
+      .firma-name { font-weight:700; font-size:13px; }
+      .firma-sub  { font-size:11px; color:#888; }
+      .footer { margin-top:28px; font-size:10px; color:#aaa; text-align:center; border-top:1px solid #e5e7eb; padding-top:10px; }
+      @media print { body { padding:16px 24px; } }
+    </style></head><body>
+    <div class="header">
+      <div>
+        <div class="clinic-name">🦷 ${clinicaNombre}</div>
+        <div class="clinic-sub">${direccion ? direccion + '<br>' : ''}${telefono ? 'Tel: ' + telefono : ''}${telefono && email ? ' | ' : ''}${email ? 'E-mail: ' + email : ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="badge-proforma">PROFORMA #${id}</div>
+        ${ruc ? `<div class="ruc-box">RUC: <strong>${ruc}</strong></div>` : ''}
+        <div class="ruc-box">Fecha: <strong>${fecha}</strong></div>
+      </div>
+    </div>
+    <div class="doc-title">PROFORMA DE TRATAMIENTO</div>
+    <div class="patient-grid">
+      <div><div class="label">Nombre</div><div class="value">${p.nombre}</div></div>
+      <div><div class="label">DNI</div><div class="value">${p.dni || ''}</div></div>
+      <div><div class="label">Teléfono</div><div class="value">${p.telefono || ''}</div></div>
+      <div><div class="label">Emisión</div><div class="value">${fecha}</div></div>
+    </div>
+    <table>
+      <thead><tr><th style="text-align:center;">#</th><th>DESCRIPCIÓN</th><th style="text-align:right;">PRECIO</th></tr></thead>
+      <tbody>${itemsHTML}<tr class="total-row"><td colspan="2">TOTAL</td><td>S/ ${parseFloat(total).toFixed(2)}</td></tr></tbody>
+    </table>
+    ${notas ? `<div class="notas"><strong>📝 Notas:</strong> ${notas}</div>` : ''}
+    <div class="validez">⚠️ Válida hasta el <strong>${validezFecha}</strong> (${validezDias} días).</div>
+    <div class="firma-row"><div class="firma-box"><div class="firma-line"></div><div class="firma-name">${doctorNombre || clinicaNombre}</div><div class="firma-sub">Cirujano Dentista</div></div></div>
+    <div class="footer">Documento informativo · DentalFlow · ${clinicaNombre} · ${fecha}</div>
+    </body></html>`;
+
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 600);
+  },
+
+  async sendProformaWhatsAppConfirm(id, nombre, total) {
+    const ok = confirm(`¿Enviar la proforma por WhatsApp a ${nombre}?\n\nTotal: S/ ${parseFloat(total).toFixed(2)}\n\nEl paciente recibirá el detalle de los tratamientos en su WhatsApp.`);
+    if (!ok) return;
+    try {
+      const res = await api.proformas.sendWhatsApp(id);
+      if (res.demo) {
+        Toast.warning('Modo demo: no se envió realmente.');
+      } else {
+        Toast.success('✅ Presupuesto enviado por WhatsApp.');
+        this.loadProformaHistory();
+      }
     } catch (err) {
       Toast.error('Error: ' + err.message);
     }
