@@ -120,7 +120,6 @@ const NotifDropdown = {
       await api.notifications.markRead();
       this._unread = 0;
       this._updateBadge();
-      this._renderList([]);
     } catch { /* silencioso */ }
   },
 };

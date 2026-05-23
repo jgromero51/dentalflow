@@ -11,7 +11,7 @@ router.get('/', async (req, res) => {
   try {
     const uid = req.user.id;
 
-    // Mensajes no leídos de pacientes (respuesta_entrada)
+    // Últimas 30 notificaciones (leídas o no), badge solo cuenta no leídas
     const mensajes = await db.prepare(`
       SELECT
         m.id, m.tipo, m.mensaje, m.created_at, m.leido,
@@ -25,12 +25,11 @@ router.get('/', async (req, res) => {
       LEFT JOIN appointments a ON a.id = m.appointment_id
       WHERE m.user_id = ?
         AND m.tipo = 'respuesta_entrada'
-        AND m.leido = 0
       ORDER BY m.created_at DESC
       LIMIT 30
     `).all(uid);
 
-    const unread = mensajes.length;
+    const unread = mensajes.filter(m => !m.leido).length;
 
     res.json({ data: mensajes, unread });
   } catch (err) {
