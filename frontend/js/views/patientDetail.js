@@ -719,7 +719,7 @@ const PatientDetailView = {
       .firma-name { font-weight:700; font-size:13px; }
       .firma-sub  { font-size:11px; color:#888; }
       .footer { margin-top:28px; font-size:10px; color:#aaa; text-align:center; border-top:1px solid #e5e7eb; padding-top:10px; }
-      @media print { body { padding:16px 24px; } }
+      @media print { body { padding:16px 24px; } .no-print { display:none !important; } }
     </style></head><body>
     <div class="header">
       <div>
@@ -747,6 +747,9 @@ const PatientDetailView = {
     <div class="validez">⚠️ Válida hasta el <strong>${validezFecha}</strong> (${validezDias} días).</div>
     <div class="firma-row"><div class="firma-box"><div class="firma-line"></div><div class="firma-name">${doctorNombre || clinicaNombre}</div><div class="firma-sub">Cirujano Dentista</div></div></div>
     <div class="footer">Documento informativo · DentalFlow · ${clinicaNombre} · ${fecha}</div>
+    <div class="no-print" style="position:fixed;top:12px;left:12px;">
+      <button onclick="window.close()" style="background:#1a6fc4;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);">← Volver</button>
+    </div>
     </body></html>`;
 
     const win = window.open('', '_blank');
@@ -1014,6 +1017,10 @@ const PatientDetailView = {
   <div class="footer">
     Este documento es una proforma informativa y no constituye un comprobante fiscal de pago.<br>
     Generado con DentalFlow · ${clinicaNombre} · ${fecha}
+  </div>
+
+  <div class="no-print" style="position:fixed;top:12px;left:12px;">
+    <button onclick="window.close()" style="background:#1a6fc4;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.2);">← Volver</button>
   </div>
 
 </body>
