@@ -21,12 +21,13 @@ const DashboardView = {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const [resHoy, resStats, resUpcoming] = await Promise.all([
+      const [resHoy, resStats, resUpcoming, resSettings] = await Promise.all([
         api.appointments.list({ startDate: today, endDate: today }),
         api.appointments.stats(this._currentMes),
         api.appointments.upcoming(),
+        api.settings.get().catch(() => ({ data: {} })),
       ]);
-      this._render(container, resHoy.data || [], resStats, resUpcoming.data || []);
+      this._render(container, resHoy.data || [], resStats, resUpcoming.data || [], resSettings.data || {});
     } catch (err) {
       container.querySelector('#dashboard-view').innerHTML += `
         <div class="empty-state">
@@ -41,7 +42,7 @@ const DashboardView = {
     return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
   },
 
-  _render(container, citasHoy, stats, proximasCitas) {
+  _render(container, citasHoy, stats, proximasCitas, settings = {}) {
     const d = new Date();
     const dateStr = d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -60,7 +61,7 @@ const DashboardView = {
       <div class="settings-hero">
         <div class="settings-hero-icon">👋</div>
         <div>
-          <h1 class="settings-hero-title">¡Hola!</h1>
+          <h1 class="settings-hero-title">¡Hola, ${settings.doctor_name ? settings.doctor_name : 'Doctor'}!</h1>
           <p class="settings-hero-sub" style="text-transform:capitalize;">${dateStr}</p>
         </div>
       </div>
