@@ -191,6 +191,12 @@ const remoteApi = {
     logout() { Auth.clearToken(); },
   },
 
+  recall: {
+    candidates: (p = {}) => remoteApi.request('GET', `/recall/candidates?${new URLSearchParams(p)}`),
+    sendAll:    (data)   => remoteApi.request('POST', '/recall/send', data),
+    sendOne:    (id)     => remoteApi.request('POST', `/recall/send/${id}`),
+  },
+
   admin: {
     users: () => remoteApi.request('GET', '/admin/users'),
     stats: () => remoteApi.request('GET', '/admin/system-stats'),

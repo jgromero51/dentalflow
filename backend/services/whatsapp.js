@@ -140,4 +140,45 @@ async function replyMessage(telefono, mensaje) {
   return sendMessage(telefono, mensaje);
 }
 
-module.exports = { sendMessage, sendTemplate, sendConfirmTemplate, replyMessage };
+/**
+ * Envía el template de reactivación de paciente inactivo
+ * Variables: {{nombre}}, {{clinica}}
+ */
+async function sendRecallTemplate(telefono, { nombre, clinica }) {
+  const to = normalizarTelefono(telefono);
+
+  if (DEMO_MODE || !WA_TOKEN || WA_TOKEN === 'EAAxxxxxxxxxx') {
+    console.log(`[WhatsApp Demo] Recall a +${to} | ${nombre} | ${clinica}`);
+    return { success: true, demo: true };
+  }
+
+  try {
+    const res = await axios.post(WA_API_BASE, {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: 'reactivacion_paciente',
+        language: { code: process.env.WA_TEMPLATE_LANG || 'es_PE' },
+        components: [{
+          type: 'body',
+          parameters: [
+            { type: 'text', parameter_name: 'nombre',  text: nombre  },
+            { type: 'text', parameter_name: 'clinica', text: clinica },
+          ]
+        }]
+      }
+    }, { headers: headers(), timeout: 10000 });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    console.log(`[WhatsApp] Recall enviado a +${to} - ID: ${messageId}`);
+    return { success: true, messageId };
+  } catch (err) {
+    const fullError = err.response?.data || err.message;
+    const errorMsg  = err.response?.data?.error?.message || err.message;
+    console.error(`[WhatsApp] Error recall a +${to}:`, JSON.stringify(fullError));
+    return { success: false, error: errorMsg };
+  }
+}
+
+module.exports = { sendMessage, sendTemplate, sendConfirmTemplate, replyMessage, sendRecallTemplate };

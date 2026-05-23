@@ -130,6 +130,16 @@
                 <div class="nav-dropdown-item-desc">Historial de WhatsApp y respuestas</div>
               </div>
             </button>
+
+            <!-- Opción: Recall de Pacientes -->
+            <button class="nav-dropdown-item" role="menuitem"
+                    onclick="NavDropdown.close(); Router.navigate('recall');">
+              <span class="nav-dropdown-item-icon">🔔</span>
+              <div class="nav-dropdown-item-text">
+                <div class="nav-dropdown-item-label">Recall de Pacientes</div>
+                <div class="nav-dropdown-item-desc">Reactivar pacientes inactivos</div>
+              </div>
+            </button>
             
 
             <!-- Opción: Instalar App (Oculto por defecto) -->
@@ -281,6 +291,7 @@
 
   <script src="/js/views/newPatientWizard.js"></script>
   <script src="/js/views/globalSearch.js"></script>
+  <script src="/js/views/recall.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

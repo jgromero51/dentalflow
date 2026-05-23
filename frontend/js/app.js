@@ -48,6 +48,7 @@ const Router = {
     'forgot-password': renderForgotPassword,
     'reset-password': renderResetPassword,
     'join':           (c) => JoinView.render(c),
+    'recall':         (c) => RecallView.render(c),
   },
 
   navigate(route) {
