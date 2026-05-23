@@ -165,16 +165,18 @@ router.post('/', (req, res, next) => {
       const userCreds = await getWhatsAppCredentials(userId);
 
       // Procesar respuesta con IA
-      const { intencion, respuesta } = await processPatientResponse(text, appt);
+      const aiResult  = await processPatientResponse(text, appt);
+      const intencion = aiResult.intencion;
+      let respuesta   = aiResult.respuesta;
 
       // Actualizar estado según intención
       if (intencion === 'confirmar') {
-        await db.prepare("UPDATE appointments SET estado='confirmada', updated_at=${sqlNow()} WHERE id=?")
+        await db.prepare(`UPDATE appointments SET estado='confirmada', updated_at=${sqlNow()} WHERE id=?`)
           .run(appt.id);
         console.log(`[Webhook] ✅ Cita #${appt.id} CONFIRMADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'confirmar');
       } else if (intencion === 'cancelar') {
-        await db.prepare("UPDATE appointments SET estado='cancelada', updated_at=${sqlNow()} WHERE id=?")
+        await db.prepare(`UPDATE appointments SET estado='cancelada', updated_at=${sqlNow()} WHERE id=?`)
           .run(appt.id);
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'cancelar');
