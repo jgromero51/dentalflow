@@ -147,7 +147,9 @@ const AppointmentsView = {
               <div class="appt-duration">${dur}</div>
             </div>
             <div class="appt-info-col">
-              <div class="appt-patient">${a.paciente_nombre}</div>
+              <div class="appt-patient">
+                <a onclick="Router.navigate('patient/${a.patient_id}')" style="color:var(--primary);cursor:pointer;text-decoration:none;font-weight:inherit;">${a.paciente_nombre}</a>
+              </div>
               ${a.descripcion ? `<div class="appt-treatment">🦷 ${a.descripcion}</div>` : ''}
               <div class="appt-phone">${a.paciente_telefono}</div>
               ${(a.costo_estimado > 0 && (a.costo_estimado - (a.monto_pagado||0)) > 0 && a.estado !== 'cancelada' && a.estado !== 'no_asistio') ? `<div class="appt-debt-badge">⚠ Debe $${new Intl.NumberFormat('es-ES',{minimumFractionDigits:2}).format(a.costo_estimado-(a.monto_pagado||0))}</div>` : ''}

@@ -206,7 +206,9 @@ const DashboardView = {
           ${initials}
         </div>
         <div style="flex:1;">
-          <div style="font-size:16px; font-weight:600; color:var(--text-primary); margin-bottom:4px;">${cita.paciente_nombre}</div>
+          <div style="font-size:16px; font-weight:600; margin-bottom:4px;">
+            <a onclick="Router.navigate('patient/${cita.patient_id}')" style="color:var(--primary);cursor:pointer;text-decoration:none;">${cita.paciente_nombre}</a>
+          </div>
           <div style="font-size:14px; color:var(--text-secondary);">📅 ${d.toLocaleDateString('es-ES')} a las ${hora}</div>
           ${cita.descripcion ? `<div style="font-size:13px; color:var(--text-muted); margin-top:4px;">${cita.descripcion}</div>` : ''}
         </div>
