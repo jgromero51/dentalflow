@@ -21,10 +21,16 @@ const db = {
         return rows[0] || null;
       },
       async run(...params) {
-        const result = await knex.raw(sql, params.flat());
         const isSQLite = knexConfig[environment].client === 'sqlite3';
+        const isInsert = sql.trim().toUpperCase().startsWith('INSERT');
+        // En PostgreSQL, agregar RETURNING id para obtener el ID del insert
+        let sqlToRun = sql;
+        if (!isSQLite && isInsert && !sql.toUpperCase().includes('RETURNING')) {
+          sqlToRun = sql.trimEnd().replace(/;$/, '') + ' RETURNING id';
+        }
+        const result = await knex.raw(sqlToRun, params.flat());
         if (isSQLite) {
-          if (sql.trim().toUpperCase().startsWith('INSERT')) {
+          if (isInsert) {
             const lastId = await knex.raw('SELECT last_insert_rowid() as id');
             return { lastInsertRowid: lastId[0].id, changes: 1 };
           }
