@@ -42,8 +42,8 @@ function debeEnviar4h(fechaHoraInicio) {
   const minActual = ahoraPeru.getHours() * 60 + ahoraPeru.getMinutes();
   const horaCita  = citaPeru.getHours();
 
-  if (horaCita === 8 || horaCita === 9) {
-    // Excepción: enviar a las 7:00 AM
+  if (horaCita >= 8 && horaCita <= 11) {
+    // Citas 8, 9, 10 u 11 AM → recordatorio a las 7:00 AM
     return Math.abs(minActual - 7 * 60) <= VENTANA_TOLERANCIA;
   }
 
