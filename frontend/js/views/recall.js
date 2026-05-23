@@ -2,33 +2,90 @@
  * DentalFlow — Vista: Recall de Pacientes Inactivos
  */
 
+const RECALL_TEMPLATE_TEXT = `Hola *{{nombre}}*, te saluda *{{clinica}}* 🦷
+
+Han pasado varios meses desde tu última visita con nosotros. Te recordamos que una limpieza de rutina es clave para mantener tu salud bucal en óptimas condiciones.
+
+¿Te gustaría agendar una cita? Responde este mensaje y con gusto te atendemos 😊`;
+
+function renderWhatsAppBubble(nombre, clinica) {
+  const texto = RECALL_TEMPLATE_TEXT
+    .replace('{{nombre}}',  nombre)
+    .replace('{{clinica}}', clinica);
+
+  // Convierte *negrita* y saltos de línea a HTML
+  const html = texto
+    .replace(/\*(.*?)\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+
+  return `
+    <div style="background:#075e54;border-radius:12px;padding:1rem 1.25rem;max-width:380px;">
+      <div style="font-size:0.7rem;color:#25d366;font-weight:600;margin-bottom:0.5rem;letter-spacing:0.03em;">
+        reactivacion_paciente
+      </div>
+      <div style="
+        background:#fff;
+        border-radius:8px;
+        padding:0.75rem 1rem;
+        font-size:0.88rem;
+        line-height:1.55;
+        color:#111;
+        position:relative;
+      ">
+        ${html}
+        <div style="font-size:0.7rem;color:#999;text-align:right;margin-top:0.5rem;">
+          ${new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })} ✓✓
+        </div>
+      </div>
+    </div>`;
+}
+
 const RecallView = {
   _dias_inactividad: 90,
   _dias_entre_recall: 30,
   _candidates: [],
   _loading: false,
   _sending: false,
+  _clinica: '',
 
   async render(container) {
+    // Cargar nombre de clínica para el preview
+    try {
+      const s = await api.settings.get();
+      this._clinica = s?.data?.clinic_name || 'tu clínica';
+    } catch { this._clinica = 'tu clínica'; }
+
     container.innerHTML = `
       <div class="view-header">
         <h1 class="view-title">Recall de Pacientes</h1>
         <p class="view-subtitle">Contacta pacientes inactivos para que regresen a su control</p>
       </div>
 
-      <div class="card" style="margin-bottom:1rem;">
-        <div class="card-body" style="display:flex;gap:1.5rem;align-items:flex-end;flex-wrap:wrap;">
-          <div>
-            <label class="form-label" style="font-size:0.8rem;">Sin cita desde hace (días)</label>
-            <input id="recall-dias-inactividad" type="number" class="form-input" style="width:110px;"
-                   value="${this._dias_inactividad}" min="30" max="365" />
+      <div style="display:flex;gap:1rem;align-items:flex-start;flex-wrap:wrap;margin-bottom:1rem;">
+        <div class="card" style="flex:1;min-width:280px;">
+          <div class="card-body" style="display:flex;gap:1.5rem;align-items:flex-end;flex-wrap:wrap;">
+            <div>
+              <label class="form-label" style="font-size:0.8rem;">Sin cita desde hace (días)</label>
+              <input id="recall-dias-inactividad" type="number" class="form-input" style="width:110px;"
+                     value="${this._dias_inactividad}" min="30" max="365" />
+            </div>
+            <div>
+              <label class="form-label" style="font-size:0.8rem;">Mínimo entre recall (días)</label>
+              <input id="recall-dias-recall" type="number" class="form-input" style="width:110px;"
+                     value="${this._dias_entre_recall}" min="7" max="180" />
+            </div>
+            <button class="btn btn-secondary" id="recall-refresh-btn">Buscar candidatos</button>
           </div>
-          <div>
-            <label class="form-label" style="font-size:0.8rem;">Mínimo entre recall (días)</label>
-            <input id="recall-dias-recall" type="number" class="form-input" style="width:110px;"
-                   value="${this._dias_entre_recall}" min="7" max="180" />
+        </div>
+
+        <!-- Preview del mensaje -->
+        <div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem;font-weight:500;">
+            Vista previa del mensaje
           </div>
-          <button class="btn btn-secondary" id="recall-refresh-btn">Buscar candidatos</button>
+          <div id="recall-preview-bubble">
+            ${renderWhatsAppBubble('Paciente', this._clinica)}
+          </div>
         </div>
       </div>
 
@@ -54,6 +111,14 @@ const RecallView = {
     try {
       const res = await api.recall.candidates({ dias_inactividad: diasInactividad, dias_entre_recall: diasEntreRecall });
       this._candidates = res.data || [];
+
+      // Actualizar preview con nombre real del primer candidato
+      const previewNombre = this._candidates.length > 0
+        ? this._candidates[0].nombre.split(' ')[0]
+        : 'Paciente';
+      const bubbleEl = container.querySelector('#recall-preview-bubble');
+      if (bubbleEl) bubbleEl.innerHTML = renderWhatsAppBubble(previewNombre, this._clinica);
+
       this._renderResults(container, resultsEl);
     } catch (err) {
       resultsEl.innerHTML = `<p style="color:var(--danger);text-align:center;padding:2rem;">Error: ${err.message}</p>`;
