@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router  = express.Router();
-const { db }  = require('../db/database');
+const { db, knex } = require('../db/database');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 
 // Todas las rutas aquí requieren ser Admin
@@ -98,6 +98,43 @@ router.get('/backup', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * POST /api/admin/grant-access
+ * Otorga acceso gratuito (cortesía) a un usuario por N meses.
+ * Requiere header: x-admin-secret = ADMIN_SECRET env var.
+ * Body: { userId, months }
+ */
+router.post('/grant-access', async (req, res) => {
+  const secret = req.headers['x-admin-secret'];
+  if (!secret || secret !== process.env.ADMIN_SECRET) {
+    return res.status(403).json({ error: 'Acceso denegado.' });
+  }
+
+  const { userId, months = 3 } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId requerido.' });
+
+  const cortesiaHasta = new Date();
+  cortesiaHasta.setMonth(cortesiaHasta.getMonth() + Number(months));
+
+  await knex('subscriptions')
+    .insert({
+      user_id: userId,
+      plan: 'cortesia',
+      status: 'active',
+      cortesia_hasta: cortesiaHasta,
+      trial_ends_at: null,
+    })
+    .onConflict('user_id')
+    .merge({
+      plan: 'cortesia',
+      status: 'active',
+      cortesia_hasta: cortesiaHasta,
+    });
+
+  console.log(`[Admin] Acceso cortesía otorgado → user ${userId} hasta ${cortesiaHasta.toISOString().slice(0,10)}`);
+  res.json({ ok: true, userId, cortesia_hasta: cortesiaHasta });
 });
 
 module.exports = router;

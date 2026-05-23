@@ -16,7 +16,8 @@ const settingsRouter         = require('./routes/settings');
 const authRouter             = require('./routes/auth');
 const messagesRouter         = require('./routes/messages');
 const odontogramRouter       = require('./routes/odontogram');
-const { requireAuth }        = require('./middleware/auth');
+const { requireAuth }          = require('./middleware/auth');
+const { requireSubscription }  = require('./middleware/subscription');
 const { initializeDatabase } = require('./db/database');
 const { startScheduler }     = require('./services/scheduler');
 const adminRouter            = require('./routes/admin');
@@ -90,17 +91,17 @@ app.use('/api/auth/setup',   setupLimiter);
 app.use('/api/auth',         authRouter);
 app.use('/api/webhook',      webhookRouter); // WhatsApp llama sin token
 
-// Protegidas (requieren JWT)
-app.use('/api/appointments', requireAuth, appointmentsRouter);
-app.use('/api/patients',     requireAuth, patientsRouter);
-app.use('/api/settings',     requireAuth, settingsRouter);
-app.use('/api/messages',     requireAuth, messagesRouter);
-app.use('/api/odontogram',   requireAuth, odontogramRouter);
-app.use('/api/catalog',      requireAuth, catalogRouter);
-app.use('/api/proformas',    requireAuth, proformasRouter);
-app.use('/api/clinic',       requireAuth, clinicRouter);
-app.use('/api/recall',         requireAuth, recallRouter);
-app.use('/api/notifications',  requireAuth, notificationsRouter);
+// Protegidas (requieren JWT + suscripción activa)
+app.use('/api/appointments', requireAuth, requireSubscription, appointmentsRouter);
+app.use('/api/patients',     requireAuth, requireSubscription, patientsRouter);
+app.use('/api/settings',     requireAuth, requireSubscription, settingsRouter);
+app.use('/api/messages',     requireAuth, requireSubscription, messagesRouter);
+app.use('/api/odontogram',   requireAuth, requireSubscription, odontogramRouter);
+app.use('/api/catalog',      requireAuth, requireSubscription, catalogRouter);
+app.use('/api/proformas',    requireAuth, requireSubscription, proformasRouter);
+app.use('/api/clinic',       requireAuth, requireSubscription, clinicRouter);
+app.use('/api/recall',       requireAuth, requireSubscription, recallRouter);
+app.use('/api/notifications',requireAuth, requireSubscription, notificationsRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {
