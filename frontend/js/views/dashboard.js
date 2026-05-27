@@ -431,6 +431,45 @@ const DashboardView = {
             <span style="font-weight:700;color:var(--text-primary);">${mesActual.recordatoriosEnviados || 0}</span>
           </div>
         </div>
+      </div>
+
+      <!-- Recall automático -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">🔄</span> Recuperación de Pacientes Inactivos (Recall)
+        </div>
+        ${a.recallEnviados === 0
+          ? `<div class="card" style="padding:20px;text-align:center;">
+               <div style="font-size:28px;margin-bottom:8px;">📭</div>
+               <div style="font-size:14px;color:var(--text-muted);">Aún no se han enviado recalls.</div>
+               <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Ve a <strong>Recall</strong> para recuperar pacientes inactivos.</div>
+             </div>`
+          : `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:16px;">
+               <div class="card" style="text-align:center;padding:16px;">
+                 <div style="font-size:26px;font-weight:800;color:var(--primary);">${a.recallEnviados}</div>
+                 <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Recalls Enviados</div>
+               </div>
+               <div class="card" style="text-align:center;padding:16px;">
+                 <div style="font-size:26px;font-weight:800;color:var(--success);">${a.recallVolvieron}</div>
+                 <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Volvieron</div>
+               </div>
+               <div class="card" style="text-align:center;padding:16px;border:1px solid var(--success)22;">
+                 <div style="font-size:26px;font-weight:800;color:var(--success);">${a.tasaRetornoRecall}%</div>
+                 <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Tasa de Retorno</div>
+               </div>
+             </div>
+             <div class="card" style="padding:14px 16px;">
+               <div style="font-size:13px;color:var(--text-secondary);">
+                 De <strong>${a.recallEnviados}</strong> pacientes contactados por recall,
+                 <strong style="color:var(--success);">${a.recallVolvieron}</strong> agendaron una nueva cita después del mensaje.
+                 ${a.tasaRetornoRecall >= 20
+                   ? `<span style="color:var(--success);"> Excelente resultado.</span>`
+                   : a.tasaRetornoRecall >= 10
+                     ? `<span style="color:var(--warning);"> Resultado promedio.</span>`
+                     : `<span style="color:var(--text-muted);"> Considerá personalizar el mensaje de recall.</span>`}
+               </div>
+             </div>`
+        }
       </div>`;
   },
 };

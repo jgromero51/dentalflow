@@ -217,6 +217,26 @@ router.get('/analytics', async (req, res) => {
       };
     }));
 
+    // Stats de recall
+    const [recallEnviadosRow, recallVolvieronRow] = await Promise.all([
+      knex('message_log').where({ user_id: uid, tipo: 'recall', enviado: 1 }).count('* as c').first(),
+      knex('patients as p')
+        .where('p.user_id', uid)
+        .whereNotNull('p.recall_enviado_at')
+        .whereExists(
+          knex('appointments as a')
+            .select(knex.raw('1'))
+            .whereRaw('a.patient_id = p.id')
+            .whereRaw('a.fecha_hora_inicio > p.recall_enviado_at')
+            .whereNotIn('a.estado', ['cancelada'])
+        )
+        .count('* as c')
+        .first(),
+    ]);
+
+    const recallEnviados  = parseInt(recallEnviadosRow.c  || 0);
+    const recallVolvieron = parseInt(recallVolvieronRow.c || 0);
+
     res.json({
       total,
       confirmadas: conf,
@@ -225,6 +245,9 @@ router.get('/analytics', async (req, res) => {
       tasaNoAsistencia: total > 0 ? Math.round((noAs / total) * 100) : 0,
       recordatorios24hEfectivos: rec24,
       recordatorios4hEfectivos: rec4,
+      recallEnviados,
+      recallVolvieron,
+      tasaRetornoRecall: recallEnviados > 0 ? Math.round((recallVolvieron / recallEnviados) * 100) : 0,
       porMes,
     });
   } catch (err) {
