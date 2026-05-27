@@ -114,6 +114,8 @@ const remoteApi = {
     upcoming:     ()              => remoteApi.request('GET', '/appointments/upcoming'),
     stats:        (mes)           => remoteApi.request('GET', `/appointments/stats${mes ? '?mes=' + mes : ''}`),
     analytics:    ()             => remoteApi.request('GET', '/appointments/analytics'),
+    arrived:      (id)           => remoteApi.request('PUT', `/appointments/${id}/arrived`),
+    notaRecepcion:(id, nota)     => remoteApi.request('PUT', `/appointments/${id}/nota-recepcion`, { nota }),
     get:          (id)            => remoteApi.request('GET', `/appointments/${id}`),
     slots:        (fecha)         => remoteApi.request('GET', `/appointments/slots/${fecha}`),
     create:       (data)          => remoteApi.request('POST', '/appointments', data),
@@ -155,6 +157,8 @@ const remoteApi = {
     create:      (data)       => remoteApi.request('POST',   '/proformas', data),
     update:      (id, data)   => remoteApi.request('PUT',    `/proformas/${id}`, data),
     remove:      (id)         => remoteApi.request('DELETE', `/proformas/${id}`),
+    submit:         (id) => remoteApi.request('POST', `/proformas/${id}/submit`),
+    approve:        (id) => remoteApi.request('POST', `/proformas/${id}/approve`),
     sendWhatsApp:   (id) => remoteApi.request('POST', `/proformas/${id}/send-whatsapp`),
     sendWhatsAppPdf:(id) => remoteApi.request('POST', `/proformas/${id}/send-whatsapp-pdf`),
   },
@@ -175,11 +179,14 @@ const remoteApi = {
   },
 
   clinic: {
-    get:           ()    => remoteApi.request('GET',    '/clinic'),
-    update:        (data)=> remoteApi.request('PUT',    '/clinic', data),
-    doctors:       ()    => remoteApi.request('GET',    '/clinic/doctors'),
-    invite:        ()    => remoteApi.request('POST',   '/clinic/invite'),
-    removeDoctor:  (id)  => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
+    get:             ()             => remoteApi.request('GET',    '/clinic'),
+    update:          (data)         => remoteApi.request('PUT',    '/clinic', data),
+    doctors:         ()             => remoteApi.request('GET',    '/clinic/doctors'),
+    invite:          (rol_invitado) => remoteApi.request('POST',   '/clinic/invite', { rol_invitado }),
+    removeDoctor:    (id)           => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
+    changeRole:      (id, nuevo_rol)=> remoteApi.request('PUT',    `/clinic/doctors/${id}/role`, { nuevo_rol }),
+    toggleConsulta:  ()             => remoteApi.request('POST',   '/clinic/consulta'),
+    consultaStatus:  ()             => remoteApi.request('GET',    '/clinic/consulta'),
   },
 
   auth: {

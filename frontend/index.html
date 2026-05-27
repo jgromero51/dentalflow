@@ -84,6 +84,22 @@
             <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
           </svg>
         </button>
+        <!-- Recepción (solo receptionist) -->
+        <button class="nav-btn" data-route="reception" id="nav-reception" title="Recepción" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </button>
+        <!-- Sala de Espera (owner/doctor) -->
+        <button class="nav-btn" data-route="waiting-room" id="nav-waiting-room" title="Sala de Espera" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </button>
         <!-- Búsqueda global -->
         <button class="nav-btn" id="nav-search" title="Buscar paciente (Ctrl+K)" onclick="GlobalSearch.open()" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -323,6 +339,8 @@
   <script src="/js/views/globalSearch.js"></script>
   <script src="/js/views/recall.js"></script>
   <script src="/js/views/notifications.js"></script>
+  <script src="/js/views/reception.js"></script>
+  <script src="/js/views/waitingRoom.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

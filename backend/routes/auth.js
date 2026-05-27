@@ -154,12 +154,14 @@ router.post('/join', async (req, res) => {
     if (existing) return res.status(400).json({ error: 'Ese nombre de usuario ya está en uso.' });
 
     const hash = await bcrypt.hash(password, 12);
+    // Respetar el rol definido al crear el código de invitación
+    const assignedRole = ['doctor', 'receptionist'].includes(clinic.invite_role) ? clinic.invite_role : 'doctor';
     const result = await db.prepare(
       'INSERT INTO users(username, password_hash, role, email, clinic_id, doctor_name) VALUES(?, ?, ?, ?, ?, ?)'
-    ).run(username.trim().toLowerCase(), hash, 'doctor', email || null, clinic.id, doctor_name ? doctor_name.trim() : null);
+    ).run(username.trim().toLowerCase(), hash, assignedRole, email || null, clinic.id, doctor_name ? doctor_name.trim() : null);
 
-    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role: 'doctor', clinic_id: clinic.id, doctor_name: doctor_name || null });
-    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role: 'doctor', clinic_id: clinic.id });
+    const token = signToken({ id: result.lastInsertRowid, username: username.trim().toLowerCase(), role: assignedRole, clinic_id: clinic.id, doctor_name: doctor_name || null });
+    res.status(201).json({ success: true, token, username: username.trim().toLowerCase(), role: assignedRole, clinic_id: clinic.id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

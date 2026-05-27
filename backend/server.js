@@ -18,6 +18,7 @@ const messagesRouter         = require('./routes/messages');
 const odontogramRouter       = require('./routes/odontogram');
 const { requireAuth }          = require('./middleware/auth');
 const { requireSubscription }  = require('./middleware/subscription');
+const { clinicScope }          = require('./middleware/clinicScope');
 const { initializeDatabase } = require('./db/database');
 const { startScheduler }     = require('./services/scheduler');
 const adminRouter            = require('./routes/admin');
@@ -92,18 +93,18 @@ app.use('/api/auth/setup',   setupLimiter);
 app.use('/api/auth',         authRouter);
 app.use('/api/webhook',      webhookRouter); // WhatsApp llama sin token
 
-// Protegidas (requieren JWT + suscripción activa)
-app.use('/api/appointments', requireAuth, requireSubscription, appointmentsRouter);
-app.use('/api/patients',     requireAuth, requireSubscription, patientsRouter);
-app.use('/api/settings',     requireAuth, requireSubscription, settingsRouter);
-app.use('/api/messages',     requireAuth, requireSubscription, messagesRouter);
-app.use('/api/odontogram',   requireAuth, requireSubscription, odontogramRouter);
-app.use('/api/catalog',      requireAuth, requireSubscription, catalogRouter);
-app.use('/api/proformas',    requireAuth, requireSubscription, proformasRouter);
-app.use('/api/clinic',       requireAuth, requireSubscription, clinicRouter);
-app.use('/api/recall',       requireAuth, requireSubscription, recallRouter);
-app.use('/api/notifications',requireAuth, requireSubscription, notificationsRouter);
-app.use('/api/export',       requireAuth, requireSubscription, exportRouter);
+// Protegidas (requieren JWT + suscripción activa + scope de clínica)
+app.use('/api/appointments', requireAuth, clinicScope, requireSubscription, appointmentsRouter);
+app.use('/api/patients',     requireAuth, clinicScope, requireSubscription, patientsRouter);
+app.use('/api/settings',     requireAuth, clinicScope, requireSubscription, settingsRouter);
+app.use('/api/messages',     requireAuth, clinicScope, requireSubscription, messagesRouter);
+app.use('/api/odontogram',   requireAuth, clinicScope, requireSubscription, odontogramRouter);
+app.use('/api/catalog',      requireAuth, clinicScope, requireSubscription, catalogRouter);
+app.use('/api/proformas',    requireAuth, clinicScope, requireSubscription, proformasRouter);
+app.use('/api/clinic',       requireAuth, clinicScope, requireSubscription, clinicRouter);
+app.use('/api/recall',       requireAuth, clinicScope, requireSubscription, recallRouter);
+app.use('/api/notifications',requireAuth, clinicScope, requireSubscription, notificationsRouter);
+app.use('/api/export',       requireAuth, clinicScope, requireSubscription, exportRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

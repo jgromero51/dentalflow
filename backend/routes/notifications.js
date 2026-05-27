@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
       JOIN patients p ON p.id = m.patient_id
       LEFT JOIN appointments a ON a.id = m.appointment_id
       WHERE m.user_id = ?
-        AND m.tipo = 'respuesta_entrada'
+        AND m.tipo IN ('respuesta_entrada', 'proforma_revision')
       ORDER BY m.created_at DESC
       LIMIT 30
     `).all(uid);
@@ -44,7 +44,7 @@ router.put('/mark-read', async (req, res) => {
     const uid = req.user.id;
     await db.prepare(`
       UPDATE message_log SET leido = 1
-      WHERE user_id = ? AND tipo = 'respuesta_entrada' AND leido = 0
+      WHERE user_id = ? AND tipo IN ('respuesta_entrada', 'proforma_revision') AND leido = 0
     `).run(uid);
     res.json({ success: true });
   } catch (err) {

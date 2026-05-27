@@ -73,6 +73,38 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/proformas/:id/submit — secretaria envía a revisión del doctor
+router.post('/:id/submit', async (req, res) => {
+  try {
+    const row = await db.prepare('SELECT * FROM proformas WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!row) return res.status(404).json({ error: 'Proforma no encontrada' });
+    await db.prepare(`UPDATE proformas SET estado='pendiente_revision', updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
+
+    // Notificación al owner/doctor en message_log
+    await db.prepare(`
+      INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
+      VALUES (?, ?, 'proforma_revision', ?, 0)
+    `).run(row.patient_id, req.user.id, `Proforma #${row.id} requiere tu aprobación`);
+
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/proformas/:id/approve — doctor aprueba la proforma
+router.post('/:id/approve', async (req, res) => {
+  try {
+    const { requireRole } = require('../middleware/clinicScope');
+    const role = req.user?._own_role || req.user?.role;
+    if (!['owner', 'doctor', 'admin'].includes(role)) {
+      return res.status(403).json({ error: 'Solo el doctor puede aprobar proformas.' });
+    }
+    const row = await db.prepare('SELECT * FROM proformas WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+    if (!row) return res.status(404).json({ error: 'Proforma no encontrada' });
+    await db.prepare(`UPDATE proformas SET estado='aprobada', updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/proformas/:id/send-whatsapp — envía resumen por WhatsApp al paciente
 router.post('/:id/send-whatsapp', async (req, res) => {
   try {

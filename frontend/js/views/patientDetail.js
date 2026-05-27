@@ -32,6 +32,11 @@ const PatientDetailView = {
     const p = this.patient;
     const initials = p.nombre.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
 
+    // Receptionist no puede ver la tab clínica
+    if (this.currentTab === 'clinica' && Auth.getUser()?.role === 'receptionist') {
+      this.currentTab = 'agenda';
+    }
+
     let tabContent = '';
     if (this.currentTab === 'agenda') {
       tabContent = this.renderAgenda();
@@ -63,7 +68,7 @@ const PatientDetailView = {
         
         <div class="tabs" style="display:flex; gap:16px; margin-top:24px; border-bottom:1px solid var(--border-color);">
           <button class="tab-btn ${this.currentTab === 'agenda' ? 'active' : ''}" onclick="PatientDetailView.switchTab('agenda')">Agenda</button>
-          <button class="tab-btn ${this.currentTab === 'clinica' ? 'active' : ''}" onclick="PatientDetailView.switchTab('clinica')">Historia & Odontograma</button>
+          ${Auth.getUser()?.role !== 'receptionist' ? `<button class="tab-btn ${this.currentTab === 'clinica' ? 'active' : ''}" onclick="PatientDetailView.switchTab('clinica')">Historia & Odontograma</button>` : ''}
           <button class="tab-btn ${this.currentTab === 'finanzas' ? 'active' : ''}" onclick="PatientDetailView.switchTab('finanzas')">Finanzas</button>
         </div>
       </div>
@@ -612,13 +617,30 @@ const PatientDetailView = {
         el.innerHTML = `<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:16px;">Sin proformas guardadas.</div>`;
         return;
       }
+      const _pfRole = Auth.getUser()?.role;
+      const _isReceptionist = _pfRole === 'receptionist';
+      const _canApprove = _pfRole === 'owner' || _pfRole === 'doctor' || _pfRole === 'admin';
+
       el.innerHTML = rows.map(pf => {
         const fecha  = new Date((pf.created_at || '') + (pf.created_at && !pf.created_at.includes('Z') ? 'Z' : '')).toLocaleDateString('es-PE', { day:'2-digit', month:'short', year:'numeric' });
-        const estado = pf.estado === 'enviada'
-          ? `<span style="background:#238636;color:#fff;border-radius:4px;padding:2px 6px;font-size:11px;">Enviada</span>`
-          : `<span style="background:var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;font-size:11px;">Borrador</span>`;
+        const estadoBadge = {
+          borrador:          `<span style="background:var(--border);color:var(--text-muted);border-radius:4px;padding:2px 7px;font-size:11px;">Borrador</span>`,
+          pendiente_revision:`<span style="background:#9a6700;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">⏳ Revisión</span>`,
+          aprobada:          `<span style="background:#1f6feb;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">✅ Aprobada</span>`,
+          enviada:           `<span style="background:#238636;color:#fff;border-radius:4px;padding:2px 7px;font-size:11px;">Enviada</span>`,
+        }[pf.estado] || `<span style="background:var(--border);color:var(--text-muted);border-radius:4px;padding:2px 7px;font-size:11px;">${pf.estado}</span>`;
+
         const itemsAttr = JSON.stringify(pf.items).replace(/"/g,'&quot;');
         const notasAttr = (pf.notas||'').replace(/'/g,"\\'");
+
+        // Botones de flujo de aprobación
+        let workflowBtn = '';
+        if (pf.estado === 'borrador' && _isReceptionist) {
+          workflowBtn = `<button class="btn btn-primary btn-sm" style="flex:1;min-width:110px;" onclick="PatientDetailView._submitProforma(${pf.id})">📤 Enviar a revisión</button>`;
+        } else if (pf.estado === 'pendiente_revision' && _canApprove) {
+          workflowBtn = `<button class="btn btn-primary btn-sm" style="flex:1;min-width:110px;background:var(--success);" onclick="PatientDetailView._approveProforma(${pf.id})">✅ Aprobar</button>`;
+        }
+
         return `
           <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--bg-primary);overflow:hidden;">
             <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;">
@@ -626,17 +648,19 @@ const PatientDetailView = {
                 <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Proforma #${pf.id} — S/ ${parseFloat(pf.total).toFixed(2)}</div>
                 <div style="font-size:11px;color:var(--text-muted);">${fecha} · ${pf.items?.length || 0} ítem(s)</div>
               </div>
-              ${estado}
-              <button onclick="PatientDetailView.openProforma(${pf.id}, ${itemsAttr}, '${notasAttr}')"
-                style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 4px;" title="Editar">✏️</button>
-              <button onclick="PatientDetailView._deleteProforma(${pf.id})"
-                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>
+              ${estadoBadge}
+              ${!_isReceptionist ? `<button onclick="PatientDetailView.openProforma(${pf.id}, ${itemsAttr}, '${notasAttr}')"
+                style="background:none;border:none;cursor:pointer;font-size:18px;padding:0 4px;" title="Editar">✏️</button>` : ''}
+              ${!_isReceptionist ? `<button onclick="PatientDetailView._deleteProforma(${pf.id})"
+                style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:18px;padding:0 4px;" title="Eliminar">✕</button>` : ''}
             </div>
             <div style="display:flex;gap:6px;padding:0 12px 10px;flex-wrap:wrap;">
+              ${workflowBtn}
               <button class="btn btn-secondary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.printProformaById(${pf.id}, ${itemsAttr}, '${notasAttr}', ${parseFloat(pf.total)})">
                 📄 Ver PDF
               </button>
+              ${pf.estado === 'aprobada' || pf.estado === 'enviada' ? `
               <button class="btn btn-secondary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.sendProformaWhatsAppConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
                 💬 WA Texto
@@ -644,7 +668,7 @@ const PatientDetailView = {
               <button class="btn btn-primary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.sendProformaPdfConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
                 📎 WA PDF
-              </button>
+              </button>` : ''}
             </div>
           </div>`;
       }).join('');
@@ -658,6 +682,26 @@ const PatientDetailView = {
     try {
       await api.proformas.remove(id);
       Toast.success('Eliminada.');
+      this.loadProformaHistory();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async _submitProforma(id) {
+    try {
+      await api.proformas.submit(id);
+      Toast.success('Proforma enviada al doctor para revisión.');
+      this.loadProformaHistory();
+    } catch (err) {
+      Toast.error('Error: ' + err.message);
+    }
+  },
+
+  async _approveProforma(id) {
+    try {
+      await api.proformas.approve(id);
+      Toast.success('✅ Proforma aprobada. Ya puede enviarse al paciente.');
       this.loadProformaHistory();
     } catch (err) {
       Toast.error('Error: ' + err.message);

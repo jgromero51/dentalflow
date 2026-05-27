@@ -669,9 +669,10 @@ const SettingsView = {
         <p style="font-size:13px;color:var(--text-muted);margin:0 0 12px;">
           Gestiona los miembros que acceden a <strong>${clinic.name}</strong>. Comparte el código de invitación con nuevos doctores.
         </p>
-        <button class="btn btn-primary btn-sm" onclick="SettingsView.generateInvite()" style="margin-bottom:16px;">
-          + Generar código de invitación
-        </button>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="SettingsView.generateInvite('doctor')">+ Invitar Doctor</button>
+          <button class="btn btn-ghost btn-sm" onclick="SettingsView.generateInvite('receptionist')">+ Invitar Secretaria</button>
+        </div>
         <div id="invite-result" style="margin-bottom:12px;"></div>
         <div>
           ${doctors.map(d => `
@@ -684,6 +685,10 @@ const SettingsView = {
                 <div style="font-size:12px;color:var(--text-muted);">${d.email || d.username} · <span style="color:var(--primary);">${roleLabel[d.role] || d.role}</span></div>
               </div>
               ${d.role !== 'owner' ? `
+              <button onclick="SettingsView.changeRole(${d.id}, '${d.role}', '${(d.doctor_name || d.username).replace(/'/g,"\\'")}') "
+                class="btn btn-ghost btn-sm" title="Cambiar rol" style="font-size:11px;padding:3px 8px;">
+                ${d.role === 'receptionist' ? '→ Doctor' : '→ Secretaria'}
+              </button>
               <button onclick="SettingsView.removeDoctor(${d.id}, '${(d.doctor_name || d.username).replace(/'/g,"\\'")}') "
                 style="background:none;border:none;cursor:pointer;color:var(--danger);font-size:20px;padding:0 4px;" title="Quitar de la clínica">×</button>
               ` : ''}
@@ -695,10 +700,11 @@ const SettingsView = {
     }
   },
 
-  async generateInvite() {
+  async generateInvite(rol_invitado = 'doctor') {
     try {
-      const res  = await api.clinic.invite();
+      const res  = await api.clinic.invite(rol_invitado);
       const code = res.invite_code;
+      const label = rol_invitado === 'receptionist' ? '(Secretaria/Recepcionista)' : '(Doctor)';
       const el   = document.getElementById('invite-result');
       if (!el) return;
       el.innerHTML = `
@@ -706,13 +712,24 @@ const SettingsView = {
           <div style="flex:1;">
             <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Código de invitación</div>
             <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--primary);">${code}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Compártelo con el nuevo doctor. Solo funciona una vez.</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Rol: <strong>${label}</strong> · Solo funciona una vez.</div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>Toast.success('Copiado'))">Copiar</button>
         </div>`;
     } catch (err) {
       Toast.error('Error: ' + err.message);
     }
+  },
+
+  async changeRole(id, rolActual, nombre) {
+    const nuevoRol = rolActual === 'receptionist' ? 'doctor' : 'receptionist';
+    const label = nuevoRol === 'receptionist' ? 'Secretaria/Recepcionista' : 'Doctor';
+    if (!confirm(`¿Cambiar el rol de ${nombre} a ${label}?`)) return;
+    try {
+      await api.clinic.changeRole(id, nuevoRol);
+      Toast.success(`Rol actualizado a ${label}.`);
+      this.renderTeam();
+    } catch (err) { Toast.error('Error: ' + err.message); }
   },
 
   async removeDoctor(id, nombre) {

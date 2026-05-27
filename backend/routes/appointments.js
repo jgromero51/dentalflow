@@ -255,6 +255,30 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// PUT /api/appointments/:id/arrived — secretaria marca llegada del paciente
+router.put('/:id/arrived', async (req, res) => {
+  try {
+    const { knex } = require('../db/database');
+    const appt = await knex('appointments').where({ id: req.params.id, user_id: req.user.id }).first();
+    if (!appt) return res.status(404).json({ error: 'Cita no encontrada' });
+    const ahora = new Date().toISOString();
+    await knex('appointments').where('id', req.params.id).update({ llegada_at: ahora });
+    res.json({ success: true, llegada_at: ahora });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/appointments/:id/nota-recepcion — secretaria deja nota para el doctor
+router.put('/:id/nota-recepcion', async (req, res) => {
+  try {
+    const { knex } = require('../db/database');
+    const { nota } = req.body;
+    const appt = await knex('appointments').where({ id: req.params.id, user_id: req.user.id }).first();
+    if (!appt) return res.status(404).json({ error: 'Cita no encontrada' });
+    await knex('appointments').where('id', req.params.id).update({ nota_recepcion: nota || null });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/appointments/slots/:fecha
 router.get('/slots/:fecha', async (req, res) => {
   try {

@@ -49,6 +49,8 @@ const Router = {
     'reset-password': renderResetPassword,
     'join':           (c) => JoinView.render(c),
     'recall':         (c) => RecallView.render(c),
+    'reception':      (c) => { ReceptionView.destroy(); return ReceptionView.render(c); },
+    'waiting-room':   (c) => { WaitingRoomView.destroy(); return WaitingRoomView.render(c); },
   },
 
   navigate(route) {
@@ -97,6 +99,15 @@ const Router = {
     if (nav) nav.style.display = isAuthView ? 'none' : 'flex';
     const searchBtn = document.getElementById('nav-search');
     if (searchBtn) searchBtn.style.display = isAuthView ? 'none' : '';
+
+    // Visibilidad de nav según rol
+    if (!isAuthView) {
+      const _role = Auth.getUser()?.role;
+      const navRec = document.getElementById('nav-reception');
+      const navWR  = document.getElementById('nav-waiting-room');
+      if (navRec) navRec.style.display = (_role === 'receptionist') ? '' : 'none';
+      if (navWR)  navWR.style.display  = (_role === 'doctor' || _role === 'owner' || _role === 'admin') ? '' : 'none';
+    }
 
     // Cerrar dropdown de ajustes si estaba abierto
     if (window.NavDropdown) NavDropdown.close();
@@ -369,9 +380,11 @@ async function init() {
   let targetRoute;
   if (Auth.isLoggedIn()) {
     const currentHash = window.location.hash.replace('#', '');
+    const _user = Auth.getUser();
+    const _defaultRoute = (_user?.role === 'receptionist') ? 'reception' : 'appointments';
     targetRoute = (currentHash && currentHash !== 'login' && currentHash !== 'setup')
       ? currentHash
-      : 'appointments'; // Por defecto citas si está logueado
+      : _defaultRoute;
   } else {
     // Siempre ir a Login por defecto si no está logueado, a menos que pida setup explícitamente
     targetRoute = (window.location.hash === '#setup') ? 'setup' : 'login';
