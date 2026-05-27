@@ -41,6 +41,41 @@ router.get('/', async (req, res) => {
   }
 });
 
+// POST /api/patients/import
+router.post('/import', async (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'Se requiere un array "rows"' });
+  }
+  const uid = req.user.id;
+  let imported = 0, skipped = 0;
+  const errors = [];
+
+  for (const [i, row] of rows.entries()) {
+    const nombre   = (row.nombre   || '').trim();
+    const telefono = (row.telefono || '').toString().trim();
+    if (!nombre || !telefono) {
+      errors.push({ linea: i + 2, error: 'nombre y telefono son requeridos' });
+      skipped++; continue;
+    }
+    const telefonoNorm = telefono.startsWith('+') ? telefono : '+' + telefono.replace(/\D/g, '');
+    try {
+      const exists = await db.prepare('SELECT id FROM patients WHERE telefono = ? AND user_id = ?').get(telefonoNorm, uid);
+      if (exists) { skipped++; continue; }
+      await db.prepare(`
+        INSERT INTO patients (nombre, telefono, dni, notas, alergias, tipo_sangre, enfermedades_previas, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(nombre, telefonoNorm, row.dni || null, row.notas || null, row.alergias || null, row.tipo_sangre || null, row.enfermedades_previas || null, uid);
+      imported++;
+    } catch (err) {
+      errors.push({ linea: i + 2, error: err.message });
+      skipped++;
+    }
+  }
+
+  res.json({ imported, skipped, errors: errors.slice(0, 20) });
+});
+
 // GET /api/patients/:id
 router.get('/:id', async (req, res) => {
   try {

@@ -113,6 +113,7 @@ const remoteApi = {
     today:        ()              => remoteApi.request('GET', '/appointments/today'),
     upcoming:     ()              => remoteApi.request('GET', '/appointments/upcoming'),
     stats:        (mes)           => remoteApi.request('GET', `/appointments/stats${mes ? '?mes=' + mes : ''}`),
+    analytics:    ()             => remoteApi.request('GET', '/appointments/analytics'),
     get:          (id)            => remoteApi.request('GET', `/appointments/${id}`),
     slots:        (fecha)         => remoteApi.request('GET', `/appointments/slots/${fecha}`),
     create:       (data)          => remoteApi.request('POST', '/appointments', data),
@@ -130,6 +131,7 @@ const remoteApi = {
     delete: (id)     => remoteApi.request('DELETE', `/patients/${id}`),
     getSummary: (id) => remoteApi.request('GET', `/patients/${id}/ai-summary`),
     voiceDictation: (audioBase64, ext) => remoteApi.request('POST', '/patients/voice-dictation', { audioBase64, ext }),
+    import:           (rows)     => remoteApi.request('POST',   '/patients/import', { rows }),
     getTreatments:    (id)       => remoteApi.request('GET',    `/patients/${id}/treatments`),
     addTreatment:     (id, data) => remoteApi.request('POST',   `/patients/${id}/treatments`, data),
     deleteTreatment:  (id, tid)  => remoteApi.request('DELETE', `/patients/${id}/treatments/${tid}`),
@@ -206,6 +208,23 @@ const remoteApi = {
   admin: {
     users: () => remoteApi.request('GET', '/admin/users'),
     stats: () => remoteApi.request('GET', '/admin/system-stats'),
+  },
+
+  export: {
+    async downloadCSV(type) {
+      const token = Auth.getToken();
+      const res = await fetch(`${API_BASE}/export/${type}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Error al exportar');
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${type}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   },
 
   health: () => remoteApi.request('GET', '/health'),

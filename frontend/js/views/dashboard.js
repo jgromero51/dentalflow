@@ -21,13 +21,14 @@ const DashboardView = {
 
     try {
       const today = new Date().toISOString().split('T')[0];
-      const [resHoy, resStats, resUpcoming, resSettings] = await Promise.all([
+      const [resHoy, resStats, resUpcoming, resSettings, resAnalytics] = await Promise.all([
         api.appointments.list({ startDate: today, endDate: today }),
         api.appointments.stats(this._currentMes),
         api.appointments.upcoming(),
         api.settings.get().catch(() => ({ data: {} })),
+        api.appointments.analytics().catch(() => null),
       ]);
-      this._render(container, resHoy.data || [], resStats, resUpcoming.data || [], resSettings.data || {});
+      this._render(container, resHoy.data || [], resStats, resUpcoming.data || [], resSettings.data || {}, resAnalytics);
     } catch (err) {
       container.querySelector('#dashboard-view').innerHTML += `
         <div class="empty-state">
@@ -42,7 +43,7 @@ const DashboardView = {
     return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
   },
 
-  _render(container, citasHoy, stats, proximasCitas, settings = {}) {
+  _render(container, citasHoy, stats, proximasCitas, settings = {}, analytics = null) {
     const d = new Date();
     const dateStr = d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -67,10 +68,11 @@ const DashboardView = {
       </div>
 
       <!-- Tabs -->
-      <div style="display:flex; gap:8px; margin-bottom:20px;">
-        <button class="btn btn-primary dash-tab active" data-tab="hoy" style="flex:1; justify-content:center;">Hoy</button>
-        <button class="btn btn-ghost dash-tab" data-tab="mes" style="flex:1; justify-content:center;">Finanzas</button>
-        <button class="btn btn-ghost dash-tab" data-tab="deudores" style="flex:1; justify-content:center;">Deudas ${stats.deudores?.length > 0 ? `<span style="background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">${stats.deudores.length}</span>` : ''}</button>
+      <div style="display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap;">
+        <button class="btn btn-primary dash-tab active" data-tab="hoy" style="flex:1; min-width:80px; justify-content:center;">Hoy</button>
+        <button class="btn btn-ghost dash-tab" data-tab="mes" style="flex:1; min-width:80px; justify-content:center;">Finanzas</button>
+        <button class="btn btn-ghost dash-tab" data-tab="deudores" style="flex:1; min-width:80px; justify-content:center;">Deudas ${stats.deudores?.length > 0 ? `<span style="background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">${stats.deudores.length}</span>` : ''}</button>
+        <button class="btn btn-ghost dash-tab" data-tab="retencion" style="flex:1; min-width:80px; justify-content:center;">Retención</button>
       </div>
 
       <!-- Tab: HOY -->
@@ -113,6 +115,11 @@ const DashboardView = {
       <div id="tab-deudores" style="display:none;">
         ${this._renderDeudores(stats.deudores || [], stats.totalDeuda)}
       </div>
+
+      <!-- Tab: RETENCIÓN -->
+      <div id="tab-retencion" style="display:none;">
+        ${this._renderRetencion(analytics)}
+      </div>
     `;
 
     this._renderMesTab(container, stats);
@@ -126,7 +133,7 @@ const DashboardView = {
         });
         btn.classList.add('active', 'btn-primary');
         btn.classList.remove('btn-ghost');
-        ['hoy','mes','deudores'].forEach(t => {
+        ['hoy','mes','deudores','retencion'].forEach(t => {
           const el = container.querySelector('#tab-' + t);
           if (el) el.style.display = (t === btn.dataset.tab) ? '' : 'none';
         });
@@ -339,6 +346,92 @@ const DashboardView = {
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000)    return (n / 1000).toFixed(1) + 'k';
     return Math.round(n);
+  },
+
+  _renderRetencion(a) {
+    if (!a) {
+      return `<div class="empty-state" style="padding:40px;">
+        <div class="empty-icon" style="font-size:36px;margin-bottom:12px;">📊</div>
+        <div class="empty-title">Sin datos aún</div>
+        <div class="empty-desc">Los analytics se muestran cuando hay citas registradas.</div>
+      </div>`;
+    }
+
+    const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const fmtMes = m => { const [,mm] = m.split('-'); return meses[parseInt(mm)-1]; };
+
+    const barras = (a.porMes || []).map(m => {
+      const tConf = m.tasaConfirmacion;
+      const tNoAs = m.tasaNoAsistencia;
+      return `
+        <div style="text-align:center;flex:1;min-width:36px;">
+          <div style="font-size:10px;color:var(--text-muted);margin-bottom:4px;">${tConf}%</div>
+          <div style="height:60px;background:var(--bg-elevated);border-radius:4px;position:relative;overflow:hidden;">
+            <div style="position:absolute;bottom:0;left:0;right:0;background:var(--success);height:${tConf}%;opacity:0.8;transition:height .3s;"></div>
+            ${tNoAs > 0 ? `<div style="position:absolute;bottom:0;left:0;right:0;background:var(--danger);height:${tNoAs}%;opacity:0.6;"></div>` : ''}
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">${fmtMes(m.mes)}</div>
+        </div>`;
+    }).join('');
+
+    const mesActual = a.porMes?.[a.porMes.length - 1] || {};
+
+    return `
+      <!-- KPIs globales -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;">
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:800;color:var(--success);">${a.tasaConfirmacion}%</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Tasa Confirmación</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${a.confirmadas} de ${a.total} citas</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:800;color:var(--warning);">${a.tasaNoAsistencia}%</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:500;">No Asistencia</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">${a.noAsistio} pacientes</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:800;color:var(--primary);">${a.recordatorios24hEfectivos + a.recordatorios4hEfectivos}</div>
+          <div style="font-size:11px;color:var(--text-muted);font-weight:500;">Con Recordatorio</div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">resueltas (no canceladas/pendientes)</div>
+        </div>
+      </div>
+
+      <!-- Gráfico mensual -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">📈</span> Confirmación vs No Asistencia (6 meses)
+        </div>
+        <div class="card" style="padding:16px;">
+          <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:12px;">
+            ${barras}
+          </div>
+          <div style="display:flex;gap:16px;font-size:11px;color:var(--text-muted);">
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;margin-right:4px;"></span>Confirmadas</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;margin-right:4px;opacity:.6;"></span>No asistió</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Efectividad de recordatorios -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">💬</span> Efectividad de Recordatorios WhatsApp
+        </div>
+        <div class="card" style="padding:16px;">
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+            <span style="color:var(--text-secondary);font-size:14px;">Recordatorio 24h enviado y cita resuelta</span>
+            <span style="font-weight:700;color:var(--primary);">${a.recordatorios24hEfectivos}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+            <span style="color:var(--text-secondary);font-size:14px;">Recordatorio 4h enviado y cita resuelta</span>
+            <span style="font-weight:700;color:var(--primary);">${a.recordatorios4hEfectivos}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;">
+            <span style="color:var(--text-secondary);font-size:14px;">Este mes — citas con recordatorio</span>
+            <span style="font-weight:700;color:var(--text-primary);">${mesActual.recordatoriosEnviados || 0}</span>
+          </div>
+        </div>
+      </div>`;
   },
 };
 

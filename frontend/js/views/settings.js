@@ -273,6 +273,63 @@ const SettingsView = {
         </div>
       </div>` : ''}
 
+      <!-- Sección: Exportar CSV -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">📤</span>
+          Exportar mis Datos (CSV)
+        </div>
+        <div class="settings-card">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 14px;">
+            Descargá tus datos en formato CSV, compatible con Excel y cualquier sistema externo.
+            Tus datos siempre te pertenecen.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button class="btn btn-ghost" onclick="SettingsView._exportCSV('patients')" style="border:1px solid var(--border);justify-content:flex-start;gap:10px;">
+              <span style="font-size:16px;">👥</span>
+              <span>Exportar Pacientes</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">pacientes.csv</span>
+            </button>
+            <button class="btn btn-ghost" onclick="SettingsView._exportCSV('appointments')" style="border:1px solid var(--border);justify-content:flex-start;gap:10px;">
+              <span style="font-size:16px;">📅</span>
+              <span>Exportar Citas</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">citas.csv</span>
+            </button>
+            <button class="btn btn-ghost" onclick="SettingsView._exportCSV('odontogram')" style="border:1px solid var(--border);justify-content:flex-start;gap:10px;">
+              <span style="font-size:16px;">🦷</span>
+              <span>Exportar Odontogramas</span>
+              <span style="margin-left:auto;font-size:11px;color:var(--text-muted);">odontograma.csv</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección: Importar Pacientes CSV -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">📥</span>
+          Importar Pacientes desde CSV
+        </div>
+        <div class="settings-card">
+          <p style="font-size:13px;color:var(--text-muted);margin:0 0 6px;">
+            Subí un archivo CSV con tus pacientes. Se omiten duplicados (por teléfono).
+          </p>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;padding:8px 10px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--primary);">
+            Columnas requeridas: <code style="color:var(--primary);">nombre</code>, <code style="color:var(--primary);">telefono</code><br>
+            Columnas opcionales: <code style="color:var(--text-muted);">dni, tipo_sangre, alergias, enfermedades_previas, notas</code>
+          </p>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <label class="btn btn-primary" style="cursor:pointer;gap:8px;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Seleccionar CSV
+              <input type="file" accept=".csv,text/csv" id="import-csv-input" style="display:none;" onchange="SettingsView._handleImportCSV(this)">
+            </label>
+            <span id="import-csv-status" style="font-size:13px;color:var(--text-muted);"></span>
+          </div>
+          <div id="import-csv-result" style="margin-top:12px;display:none;"></div>
+        </div>
+      </div>
+
       <!-- Sección: Backup -->
       <div class="settings-section">
         <div class="settings-section-label">
@@ -686,6 +743,69 @@ const SettingsView = {
       Toast.success('✅ Backup descargado correctamente.');
     } catch (err) {
       Toast.error('Error al descargar backup: ' + err.message);
+    }
+  },
+
+  async _exportCSV(type) {
+    try {
+      Toast.info('Preparando exportación...');
+      await api.export.downloadCSV(type);
+      Toast.success('Archivo descargado.');
+    } catch (err) {
+      Toast.error('Error al exportar: ' + err.message);
+    }
+  },
+
+  async _handleImportCSV(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const statusEl = document.getElementById('import-csv-status');
+    const resultEl = document.getElementById('import-csv-result');
+    if (statusEl) statusEl.textContent = 'Leyendo archivo...';
+
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) {
+      if (statusEl) statusEl.textContent = 'El archivo está vacío o sin datos.';
+      return;
+    }
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+    const rows = lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const obj  = {};
+      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+      return obj;
+    }).filter(r => r.nombre || r.telefono);
+
+    if (rows.length === 0) {
+      if (statusEl) statusEl.textContent = 'No se encontraron filas válidas.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = `Importando ${rows.length} pacientes...`;
+
+    try {
+      const res = await api.patients.import(rows);
+      if (statusEl) statusEl.textContent = '';
+      if (resultEl) {
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `
+          <div style="padding:12px;border-radius:8px;background:var(--bg-secondary);border-left:3px solid var(--success);">
+            <div style="font-size:14px;font-weight:600;color:var(--success);margin-bottom:4px;">Importación completada</div>
+            <div style="font-size:13px;color:var(--text-secondary);">
+              ✅ ${res.imported} importados &nbsp;·&nbsp; ⏭️ ${res.skipped} omitidos (duplicados o errores)
+            </div>
+            ${res.errors?.length ? `<div style="font-size:12px;color:var(--warning);margin-top:6px;">Errores: ${res.errors.map(e=>`Línea ${e.linea}: ${e.error}`).join(', ')}</div>` : ''}
+          </div>`;
+      }
+      Toast.success(`✅ ${res.imported} pacientes importados.`);
+    } catch (err) {
+      if (statusEl) statusEl.textContent = '';
+      Toast.error('Error al importar: ' + err.message);
+    } finally {
+      input.value = '';
     }
   },
 

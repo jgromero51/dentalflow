@@ -26,6 +26,7 @@ const proformasRouter        = require('./routes/proformas');
 const clinicRouter           = require('./routes/clinic');
 const recallRouter           = require('./routes/recall');
 const notificationsRouter    = require('./routes/notifications');
+const exportRouter           = require('./routes/export');
 
 const rateLimit = require('express-rate-limit');
 
@@ -102,6 +103,7 @@ app.use('/api/proformas',    requireAuth, requireSubscription, proformasRouter);
 app.use('/api/clinic',       requireAuth, requireSubscription, clinicRouter);
 app.use('/api/recall',       requireAuth, requireSubscription, recallRouter);
 app.use('/api/notifications',requireAuth, requireSubscription, notificationsRouter);
+app.use('/api/export',       requireAuth, requireSubscription, exportRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

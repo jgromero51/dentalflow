@@ -163,6 +163,75 @@ router.get('/stats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/appointments/analytics — efectividad de recordatorios y retención
+router.get('/analytics', async (req, res) => {
+  try {
+    const { knex } = require('../db/database');
+    const uid = req.user.id;
+    const now = new Date();
+
+    // Últimos 6 meses
+    const meses = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    });
+
+    // Totales globales (sin canceladas)
+    const [totRow, confRow, noAsRow, rec24Row, rec4Row] = await Promise.all([
+      knex('appointments').where('user_id', uid).whereNotIn('estado', ['cancelada']).count('* as c').first(),
+      knex('appointments').where({ user_id: uid, estado: 'confirmada' }).count('* as c').first(),
+      knex('appointments').where({ user_id: uid, estado: 'no_asistio' }).count('* as c').first(),
+      knex('appointments').where({ user_id: uid, recordatorio_24h_enviado: 1 }).whereNotIn('estado', ['cancelada', 'pendiente']).count('* as c').first(),
+      knex('appointments').where({ user_id: uid, recordatorio_4h_enviado: 1 }).whereNotIn('estado', ['cancelada', 'pendiente']).count('* as c').first(),
+    ]);
+
+    const total    = parseInt(totRow.c  || 0);
+    const conf     = parseInt(confRow.c || 0);
+    const noAs     = parseInt(noAsRow.c || 0);
+    const rec24    = parseInt(rec24Row.c || 0);
+    const rec4     = parseInt(rec4Row.c  || 0);
+
+    // Por mes
+    const porMes = await Promise.all(meses.map(async mes => {
+      const prefijo = mes + '%';
+      const [t, c, n, r] = await Promise.all([
+        knex('appointments').where('user_id', uid).whereNotIn('estado', ['cancelada']).whereLike('fecha_hora_inicio', prefijo).count('* as c').first(),
+        knex('appointments').where({ user_id: uid, estado: 'confirmada' }).whereLike('fecha_hora_inicio', prefijo).count('* as c').first(),
+        knex('appointments').where({ user_id: uid, estado: 'no_asistio' }).whereLike('fecha_hora_inicio', prefijo).count('* as c').first(),
+        knex('appointments').where('user_id', uid).where(function() {
+          this.where('recordatorio_24h_enviado', 1).orWhere('recordatorio_4h_enviado', 1);
+        }).whereLike('fecha_hora_inicio', prefijo).count('* as c').first(),
+      ]);
+      const tv = parseInt(t.c || 0);
+      const cv = parseInt(c.c || 0);
+      const nv = parseInt(n.c || 0);
+      const rv = parseInt(r.c || 0);
+      return {
+        mes,
+        total: tv,
+        confirmadas: cv,
+        noAsistio: nv,
+        recordatoriosEnviados: rv,
+        tasaConfirmacion: tv > 0 ? Math.round((cv / tv) * 100) : 0,
+        tasaNoAsistencia: (cv + nv) > 0 ? Math.round((nv / (cv + nv)) * 100) : 0,
+      };
+    }));
+
+    res.json({
+      total,
+      confirmadas: conf,
+      noAsistio: noAs,
+      tasaConfirmacion: total > 0 ? Math.round((conf / total) * 100) : 0,
+      tasaNoAsistencia: total > 0 ? Math.round((noAs / total) * 100) : 0,
+      recordatorios24hEfectivos: rec24,
+      recordatorios4hEfectivos: rec4,
+      porMes,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/appointments/slots/:fecha
 router.get('/slots/:fecha', async (req, res) => {
   try {
