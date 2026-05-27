@@ -185,6 +185,7 @@ const remoteApi = {
     invite:          (rol_invitado) => remoteApi.request('POST',   '/clinic/invite', { rol_invitado }),
     removeDoctor:    (id)           => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
     changeRole:      (id, nuevo_rol)=> remoteApi.request('PUT',    `/clinic/doctors/${id}/role`, { nuevo_rol }),
+    removeDoctor:    (id)           => remoteApi.request('DELETE', `/clinic/doctors/${id}`),
     toggleConsulta:  ()             => remoteApi.request('POST',   '/clinic/consulta'),
     consultaStatus:  ()             => remoteApi.request('GET',    '/clinic/consulta'),
   },
