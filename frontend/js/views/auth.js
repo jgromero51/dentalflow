@@ -459,7 +459,7 @@ const ResetPasswordView = {
 // VISTA DE UNIRSE A CLÍNICA CON CÓDIGO
 // ============================================================
 const JoinView = {
-  render(container) {
+  render(container, preCode) {
     container.innerHTML = `
       <div class="auth-wrapper fade-in" id="join-view">
         <div class="auth-brand">
@@ -478,6 +478,7 @@ const JoinView = {
               <input id="join-code" class="form-control" type="text"
                 placeholder="Ej: A3F8B2C1" maxlength="8"
                 style="text-transform:uppercase;letter-spacing:3px;font-size:20px;font-weight:700;text-align:center;"
+                value="${preCode || ''}"
                 required autofocus />
             </div>
             <div class="form-group">

@@ -707,14 +707,19 @@ const SettingsView = {
       const label = rol_invitado === 'receptionist' ? '(Secretaria/Recepcionista)' : '(Doctor)';
       const el   = document.getElementById('invite-result');
       if (!el) return;
+      const joinLink = `${window.location.origin}/#join/${code}`;
       el.innerHTML = `
-        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;align-items:center;gap:12px;">
-          <div style="flex:1;">
-            <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Código de invitación</div>
-            <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--primary);">${code}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Rol: <strong>${label}</strong> · Solo funciona una vez.</div>
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:14px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            <div style="flex:1;">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Código de invitación</div>
+              <div style="font-size:26px;font-weight:800;letter-spacing:4px;color:var(--primary);">${code}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Rol: <strong>${label}</strong> · Solo funciona una vez.</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${joinLink}').then(()=>Toast.success('Link copiado ✅'))">Copiar link</button>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText('${code}').then(()=>Toast.success('Copiado'))">Copiar</button>
+          <div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--primary);word-break:break-all;">${joinLink}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Compartí este link — el código se completa automáticamente.</div>
         </div>`;
     } catch (err) {
       Toast.error('Error: ' + err.message);

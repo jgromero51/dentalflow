@@ -47,7 +47,7 @@ const Router = {
     'setup':        renderSetup,
     'forgot-password': renderForgotPassword,
     'reset-password': renderResetPassword,
-    'join':           (c) => JoinView.render(c),
+    'join':           (c, code) => JoinView.render(c, code),
     'recall':         (c) => RecallView.render(c),
     'reception':      (c) => { ReceptionView.destroy(); return ReceptionView.render(c); },
     'waiting-room':   (c) => { WaitingRoomView.destroy(); return WaitingRoomView.render(c); },
@@ -81,6 +81,9 @@ const Router = {
       routeParams = hash.split('/')[1];
     } else if (hash.startsWith('reset-password/')) {
       routeKey = 'reset-password';
+      routeParams = hash.split('/')[1];
+    } else if (hash.startsWith('join/')) {
+      routeKey = 'join';
       routeParams = hash.split('/')[1];
     }
 
