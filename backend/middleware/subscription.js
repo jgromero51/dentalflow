@@ -11,6 +11,7 @@ const { knex } = require('../db/database');
  * Si no existe registro en subscriptions, crea uno con trial de 14 días.
  */
 async function requireSubscription(req, res, next) {
+  return next(); // acceso libre temporalmente
   try {
     const userId = req.user?.id;
     if (!userId) return next();
