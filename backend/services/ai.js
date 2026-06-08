@@ -461,46 +461,60 @@ Si no podés leer la imagen o no hay tratamientos visibles, devolvé: []`;
  * Responde como asistente dental a cualquier mensaje libre del paciente.
  * NO puede recetar, diagnosticar ni dar indicaciones médicas.
  */
-async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, historial = []) {
+/**
+ * Procesa mensaje libre del paciente.
+ * Retorna { intencion, fecha_hora, respuesta }
+ * intencion: 'agendar' | 'otro'
+ * fecha_hora: 'YYYY-MM-DD HH:MM' si se detectó fecha completa, null si falta info
+ */
+async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, historial = [], hoy = null) {
   const ai = getOpenAIClient();
+  const fechaHoy = hoy || new Date().toISOString().slice(0, 10);
   const contextoC = apptInfo
     ? `El paciente tiene una cita el ${formatFecha(apptInfo.fecha_hora_inicio)} a las ${formatHora(apptInfo.fecha_hora_inicio)}.`
     : 'El paciente no tiene cita programada actualmente.';
 
   if (ai) {
     try {
-      // Construir historial de conversación
       const messages = [{
         role: 'system',
-        content: `Sos el asistente de ${clinicName}, una clínica dental. ${contextoC}
+        content: `Sos el asistente de ${clinicName}, una clínica dental. Hoy es ${fechaHoy}. ${contextoC}
 
-Reglas estrictas:
-- Respondé de forma natural y breve (1-2 oraciones máximo).
-- NO saludes en cada mensaje, solo en el primero si es necesario.
-- Hablá en español latinoamericano, tono amigable pero profesional.
-- Si quieren agendar cita, deciles que llamen o escriban directamente a la clínica (no podés agendar por este medio).
-- NUNCA recetes medicamentos, des diagnósticos ni indicaciones médicas. Si piden eso, decí que consulten con el doctor.
-- No repitas información que ya dijiste antes en la conversación.`
+Respondé SOLO en JSON válido con este formato exacto:
+{"intencion":"agendar"|"otro","fecha_hora":"YYYY-MM-DD HH:MM"|null,"respuesta":"texto"}
+
+Reglas:
+- intencion="agendar" si el paciente quiere sacar turno/cita.
+- fecha_hora: extrae la fecha y hora. Si dice "mañana a las 3" calcula la fecha real. Si falta fecha O falta hora, ponla en null y pregunta lo que falta.
+- respuesta: máx 2 oraciones, natural, sin saludar en cada mensaje, español latinoamericano.
+- Si agendar y fecha_hora completa: confirmá la cita en la respuesta ("¡Listo! Te agendamos para el...").
+- Si agendar y falta info: preguntá solo lo que falta.
+- NUNCA recetes ni des diagnósticos. Si piden eso, remití al doctor.
+- Si pregunta sobre dolor/urgencia: mostrá empatía y ofrecé agendar urgente.`
       }];
 
-      // Agregar historial previo
-      for (const h of historial) {
-        messages.push({ role: h.role, content: h.content });
-      }
+      for (const h of historial) messages.push({ role: h.role, content: h.content });
       messages.push({ role: 'user', content: texto });
 
       const response = await ai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages,
-        max_tokens: 150,
-        temperature: 0.7,
+        max_tokens: 200,
+        temperature: 0.4,
+        response_format: { type: 'json_object' },
       });
-      return response.choices[0].message.content.trim();
+
+      const parsed = JSON.parse(response.choices[0].message.content);
+      return {
+        intencion: parsed.intencion || 'otro',
+        fecha_hora: parsed.fecha_hora || null,
+        respuesta: parsed.respuesta || ''
+      };
     } catch (err) {
       console.warn('[AI] Error en chatWithPatient:', err.message);
     }
   }
-  return `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷`;
+  return { intencion: 'otro', fecha_hora: null, respuesta: `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷` };
 }
 
 module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage, chatWithPatient };

@@ -140,12 +140,15 @@ router.post('/', (req, res, next) => {
         const clinicName = settings.clinic_name || 'la clínica';
         const userCreds = await getWhatsAppCredentials(userId);
         const historial = await getHistorial(patient.id);
-        const respuesta = await chatWithPatient(text, patient.nombre, clinicName, null, historial);
-        await sendMessage(telefonoFormateado, respuesta, userCreds);
-        await db.prepare(`
-          INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
-          VALUES (?, ?, 'respuesta_salida', ?, 1)
-        `).run(patient.id, userId, respuesta);
+        const aiRes = await chatWithPatient(text, patient.nombre, clinicName, null, historial);
+
+        // Si quiere agendar y tenemos fecha+hora → crear cita
+        if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
+          await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+        }
+
+        await sendMessage(telefonoFormateado, aiRes.respuesta, userCreds);
+        await db.prepare(`INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado) VALUES (?, ?, 'respuesta_salida', ?, 1)`).run(patient.id, userId, aiRes.respuesta);
         continue;
       }
 
@@ -173,7 +176,11 @@ router.post('/', (req, res, next) => {
         const settings = await getSettings(userId);
         const clinicName = settings.clinic_name || 'la clínica';
         const historial = await getHistorial(patient.id);
-        respuesta = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt, historial);
+        const aiRes = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt, historial);
+        if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
+          await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+        }
+        respuesta = aiRes.respuesta;
       }
 
       // Enviar respuesta automática
@@ -189,6 +196,18 @@ router.post('/', (req, res, next) => {
     console.error('[Webhook] Error procesando mensaje:', err.message);
   }
 });
+
+async function crearCitaDesdeChat(patient, userId, fechaHora, dbConn) {
+  try {
+    await dbConn.prepare(`
+      INSERT INTO appointments (patient_id, user_id, fecha_hora_inicio, duracion_minutos, descripcion, estado)
+      VALUES (?, ?, ?, 30, 'Cita agendada por WhatsApp', 'pendiente')
+    `).run(patient.id, userId, fechaHora);
+    console.log(`[Webhook] 📅 Cita creada desde chat para ${patient.nombre} @ ${fechaHora}`);
+  } catch (err) {
+    console.error('[Webhook] Error al crear cita desde chat:', err.message);
+  }
+}
 
 async function getHistorial(patientId) {
   try {
