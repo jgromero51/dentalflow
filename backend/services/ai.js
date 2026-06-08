@@ -457,4 +457,35 @@ Si no podés leer la imagen o no hay tratamientos visibles, devolvé: []`;
   return parsed;
 }
 
-module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage };
+/**
+ * Responde como asistente dental a cualquier mensaje libre del paciente.
+ * NO puede recetar, diagnosticar ni dar indicaciones médicas.
+ */
+async function chatWithPatient(texto, patientName, clinicName, apptInfo = null) {
+  const ai = getOpenAIClient();
+  const contextoC = apptInfo
+    ? `El paciente tiene una cita el ${formatFecha(apptInfo.fecha_hora_inicio)} a las ${formatHora(apptInfo.fecha_hora_inicio)}.`
+    : 'El paciente no tiene cita programada actualmente.';
+
+  if (ai) {
+    try {
+      const response = await ai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{
+          role: 'system',
+          content: `Eres el asistente virtual de ${clinicName}, una clínica dental. Responde de forma cálida, breve (máx 3 oraciones) y profesional en español. ${contextoC} IMPORTANTE: No puedes recetar medicamentos, dar diagnósticos médicos ni indicaciones clínicas. Si te piden algo así, dile amablemente que consulte con el doctor en la clínica.`
+        }, {
+          role: 'user', content: `Paciente: ${patientName}\nMensaje: ${texto}`
+        }],
+        max_tokens: 200,
+        temperature: 0.5,
+      });
+      return response.choices[0].message.content.trim();
+    } catch (err) {
+      console.warn('[AI] Error en chatWithPatient:', err.message);
+    }
+  }
+  return `Hola ${patientName} 👋 Gracias por escribirnos a *${clinicName}*. En breve el equipo te responderá. ¡Que tengas un lindo día! 🦷`;
+}
+
+module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage, chatWithPatient };

@@ -7,7 +7,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db, getSettings, sqlNow, sqlColGtNow } = require('../db/database');
-const { processPatientResponse } = require('../services/ai');
+const { processPatientResponse, chatWithPatient } = require('../services/ai');
 const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
 
 // GET /api/webhook — Verificación inicial de Meta
@@ -134,30 +134,17 @@ router.post('/', (req, res, next) => {
         VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
       `).run(appt?.id || null, patient.id, userId, text);
 
-      // Sin cita pendiente → responder con mensaje de bienvenida (máx 1 vez cada 4h)
+      // Sin cita pendiente → responder con IA siempre
       if (!appt) {
-        const COOLDOWN_HORAS = 4;
-        const corte = new Date(Date.now() - COOLDOWN_HORAS * 60 * 60 * 1000).toISOString();
-        const enviada = await db.prepare(`
-          SELECT id FROM message_log
-          WHERE patient_id = ? AND tipo = 'bienvenida' AND created_at > ?
-          LIMIT 1
-        `).get(patient.id, corte);
-
-        if (enviada) {
-          console.log(`[Webhook] Bienvenida ya enviada hace menos de ${COOLDOWN_HORAS}h a ${patient.nombre} — omitiendo`);
-          continue;
-        }
-
-        console.log(`[Webhook] Sin cita pendiente para ${patient.nombre} — enviando bienvenida`);
-        const welcomeMsg = await buildWelcomeMessage(userId);
+        const settings = await getSettings(userId);
+        const clinicName = settings.clinic_name || 'la clínica';
         const userCreds = await getWhatsAppCredentials(userId);
-        await sendMessage(telefonoFormateado, welcomeMsg, userCreds);
-
+        const respuesta = await chatWithPatient(text, patient.nombre, clinicName, null);
+        await sendMessage(telefonoFormateado, respuesta, userCreds);
         await db.prepare(`
           INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
-          VALUES (?, ?, 'bienvenida', ?, 1)
-        `).run(patient.id, userId, welcomeMsg);
+          VALUES (?, ?, 'respuesta_salida', ?, 1)
+        `).run(patient.id, userId, respuesta);
         continue;
       }
 
@@ -181,10 +168,10 @@ router.post('/', (req, res, next) => {
         console.log(`[Webhook] ❌ Cita #${appt.id} CANCELADA por ${patient.nombre}`);
         await notificarDoctor(appt, patient, 'cancelar');
       } else {
-        // Mensaje general: avisar que el doctor se contactará
-        if (respuesta) {
-          respuesta += '\n\nSi tenés alguna consulta adicional, el doctor se comunicará con vos en breve. 👨‍⚕️';
-        }
+        // Mensaje general: responder con IA
+        const settings = await getSettings(userId);
+        const clinicName = settings.clinic_name || 'la clínica';
+        respuesta = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt);
       }
 
       // Enviar respuesta automática
