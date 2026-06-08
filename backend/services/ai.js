@@ -469,7 +469,9 @@ Si no podés leer la imagen o no hay tratamientos visibles, devolvé: []`;
  */
 async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, historial = [], hoy = null) {
   const ai = getOpenAIClient();
-  const fechaHoy = hoy || new Date().toISOString().slice(0, 10);
+  // Usar timezone de Peru (UTC-5) para calcular "hoy" correctamente
+  const fechaHoy = hoy || new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const diaSemana = new Date(fechaHoy + 'T12:00:00').toLocaleDateString('es-PE', { weekday: 'long' });
   const contextoC = apptInfo
     ? `El paciente tiene una cita el ${formatFecha(apptInfo.fecha_hora_inicio)} a las ${formatHora(apptInfo.fecha_hora_inicio)}.`
     : 'El paciente no tiene cita programada actualmente.';
@@ -478,19 +480,17 @@ async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, 
     try {
       const messages = [{
         role: 'system',
-        content: `Sos el asistente de ${clinicName}, una clínica dental. Hoy es ${fechaHoy}. ${contextoC}
+        content: `Sos el asistente de ${clinicName}, una clínica dental en Perú. Hoy es ${diaSemana} ${fechaHoy}. ${contextoC}
 
 Respondé SOLO en JSON válido con este formato exacto:
 {"intencion":"agendar"|"otro","fecha_hora":"YYYY-MM-DD HH:MM"|null,"respuesta":"texto"}
 
 Reglas:
-- intencion="agendar" si el paciente quiere sacar turno/cita.
-- fecha_hora: extrae la fecha y hora. Si dice "mañana a las 3" calcula la fecha real. Si falta fecha O falta hora, ponla en null y pregunta lo que falta.
-- respuesta: máx 2 oraciones, natural, sin saludar en cada mensaje, español latinoamericano.
-- Si agendar y fecha_hora completa: confirmá la cita en la respuesta ("¡Listo! Te agendamos para el...").
-- Si agendar y falta info: preguntá solo lo que falta.
-- NUNCA recetes ni des diagnósticos. Si piden eso, remití al doctor.
-- Si pregunta sobre dolor/urgencia: mostrá empatía y ofrecé agendar urgente.`
+- intencion="agendar" SOLO si el paciente confirma una fecha/hora específica en ESTE mensaje. Si solo pregunta disponibilidad, es "otro".
+- fecha_hora: calcula la fecha real en base a HOY (${fechaHoy}, ${diaSemana}). "Mañana" = un día después de hoy. Devolvé formato "YYYY-MM-DD HH:MM". Si falta fecha O hora exacta, devolvé null.
+- respuesta: máx 2 oraciones. Sin saludar repetido. Cuando confirmés una cita, mencioná el DÍA DE LA SEMANA y la fecha completa para que quede claro (ej: "¡Listo! Te agendamos para el lunes 9 de junio a las 15:00.").
+- Si el paciente da una nueva hora para la misma cita, asumir que reemplaza la anterior.
+- NUNCA recetes ni des diagnósticos. Ante dolor, ofrecé cita urgente.`
       }];
 
       for (const h of historial) messages.push({ role: h.role, content: h.content });

@@ -199,6 +199,12 @@ router.post('/', (req, res, next) => {
 
 async function crearCitaDesdeChat(patient, userId, fechaHora, dbConn) {
   try {
+    // Cancelar citas pendientes previas agendadas por WhatsApp para este paciente
+    await dbConn.prepare(`
+      UPDATE appointments SET estado='cancelada'
+      WHERE patient_id = ? AND user_id = ? AND estado='pendiente' AND descripcion='Cita agendada por WhatsApp'
+    `).run(patient.id, userId);
+
     await dbConn.prepare(`
       INSERT INTO appointments (patient_id, user_id, fecha_hora_inicio, duracion_minutos, descripcion, estado)
       VALUES (?, ?, ?, 30, 'Cita agendada por WhatsApp', 'pendiente')
