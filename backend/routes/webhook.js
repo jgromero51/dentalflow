@@ -143,12 +143,16 @@ router.post('/', (req, res, next) => {
         const aiRes = await chatWithPatient(text, patient.nombre, clinicName, null, historial);
 
         // Si quiere agendar y tenemos fecha+hora → crear cita
+        let respuestaFinal = aiRes.respuesta;
         if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
-          await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+          const resultado = await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+          if (!resultado.ok) {
+            respuestaFinal = `Ese horario ya está ocupado. ¿Podés elegir otra hora?`;
+          }
         }
 
-        await sendMessage(telefonoFormateado, aiRes.respuesta, userCreds);
-        await db.prepare(`INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado) VALUES (?, ?, 'respuesta_salida', ?, 1)`).run(patient.id, userId, aiRes.respuesta);
+        await sendMessage(telefonoFormateado, respuestaFinal, userCreds);
+        await db.prepare(`INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado) VALUES (?, ?, 'respuesta_salida', ?, 1)`).run(patient.id, userId, respuestaFinal);
         continue;
       }
 
@@ -178,7 +182,10 @@ router.post('/', (req, res, next) => {
         const historial = await getHistorial(patient.id);
         const aiRes = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt, historial);
         if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
-          await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+          const resultado = await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
+          if (!resultado.ok) {
+            aiRes.respuesta = `Ese horario ya está ocupado. ¿Podés elegir otra hora?`;
+          }
         }
         respuesta = aiRes.respuesta;
       }
@@ -199,19 +206,42 @@ router.post('/', (req, res, next) => {
 
 async function crearCitaDesdeChat(patient, userId, fechaHora, dbConn) {
   try {
-    // Cancelar citas pendientes previas agendadas por WhatsApp para este paciente
+    const duracion = 30;
+    const inicio = new Date(fechaHora);
+    const fin    = new Date(inicio.getTime() + duracion * 60000);
+
+    // Verificar conflicto de horario con cualquier cita existente
+    const conflicto = await dbConn.prepare(`
+      SELECT p.nombre as paciente_nombre FROM appointments a
+      JOIN patients p ON p.id = a.patient_id
+      WHERE a.user_id = ? AND a.estado NOT IN ('cancelada','no_asistio')
+        AND a.patient_id != ?
+        AND datetime(a.fecha_hora_inicio) < datetime(?)
+        AND datetime(a.fecha_hora_inicio, '+' || a.duracion_minutos || ' minutes') > datetime(?)
+      LIMIT 1
+    `).get(userId, patient.id, fin.toISOString(), inicio.toISOString());
+
+    if (conflicto) {
+      console.log(`[Webhook] ⚠️ Conflicto de horario para ${patient.nombre} @ ${fechaHora}`);
+      return { ok: false, motivo: 'conflicto' };
+    }
+
+    // Cancelar citas previas de WhatsApp del mismo paciente (pendiente o confirmada)
     await dbConn.prepare(`
       UPDATE appointments SET estado='cancelada'
-      WHERE patient_id = ? AND user_id = ? AND estado='pendiente' AND descripcion='Cita agendada por WhatsApp'
+      WHERE patient_id = ? AND user_id = ? AND estado IN ('pendiente','confirmada') AND descripcion='Cita agendada por WhatsApp'
     `).run(patient.id, userId);
 
     await dbConn.prepare(`
       INSERT INTO appointments (patient_id, user_id, fecha_hora_inicio, duracion_minutos, descripcion, estado)
-      VALUES (?, ?, ?, 30, 'Cita agendada por WhatsApp', 'pendiente')
-    `).run(patient.id, userId, fechaHora);
+      VALUES (?, ?, ?, ?, 'Cita agendada por WhatsApp', 'pendiente')
+    `).run(patient.id, userId, fechaHora, duracion);
+
     console.log(`[Webhook] 📅 Cita creada desde chat para ${patient.nombre} @ ${fechaHora}`);
+    return { ok: true };
   } catch (err) {
     console.error('[Webhook] Error al crear cita desde chat:', err.message);
+    return { ok: false, motivo: 'error' };
   }
 }
 
