@@ -483,14 +483,13 @@ async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, 
         content: `Sos el asistente de ${clinicName}, una clínica dental en Perú. Hoy es ${diaSemana} ${fechaHoy}. ${contextoC}
 
 Respondé SOLO en JSON válido con este formato exacto:
-{"intencion":"agendar"|"otro","fecha_hora":"YYYY-MM-DD HH:MM"|null,"respuesta":"texto"}
+{"intencion":"agendar"|"otro","respuesta":"texto"}
 
 Reglas:
-- intencion="agendar" SOLO si el paciente confirma una fecha/hora específica en ESTE mensaje. Si solo pregunta disponibilidad, es "otro".
-- fecha_hora: calcula la fecha real en base a HOY (${fechaHoy}, ${diaSemana}). "Mañana" = un día después de hoy. Devolvé formato "YYYY-MM-DD HH:MM". Si falta fecha O hora exacta, devolvé null.
-- respuesta: máx 2 oraciones. Sin saludar repetido. Cuando confirmés una cita, mencioná el DÍA DE LA SEMANA y la fecha completa para que quede claro (ej: "¡Listo! Te agendamos para el lunes 9 de junio a las 15:00.").
-- Si el paciente da una nueva hora para la misma cita, asumir que reemplaza la anterior.
-- NUNCA recetes ni des diagnósticos. Ante dolor, ofrecé cita urgente.`
+- intencion="agendar" si el paciente quiere sacar turno/cita o preguntar disponibilidad de horarios.
+- respuesta: máx 2 oraciones, natural, sin saludar repetido, español latinoamericano.
+- NUNCA recetes ni des diagnósticos. Ante dolor, mostrá empatía y decí que pueden atenderlo.
+- NO menciones que sos un asistente virtual ni que no podés agendar.`
       }];
 
       for (const h of historial) messages.push({ role: h.role, content: h.content });
@@ -507,14 +506,13 @@ Reglas:
       const parsed = JSON.parse(response.choices[0].message.content);
       return {
         intencion: parsed.intencion || 'otro',
-        fecha_hora: parsed.fecha_hora || null,
         respuesta: parsed.respuesta || ''
       };
     } catch (err) {
       console.warn('[AI] Error en chatWithPatient:', err.message);
     }
   }
-  return { intencion: 'otro', fecha_hora: null, respuesta: `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷` };
+  return { intencion: 'otro', respuesta: `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷` };
 }
 
 module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage, chatWithPatient };

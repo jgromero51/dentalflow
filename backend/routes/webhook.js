@@ -128,6 +128,18 @@ router.post('/', (req, res, next) => {
         userId = adminUser?.id || 1;
       }
 
+      // Si hay cooldown de agendar activo (2h), no responder
+      const corteAgendar = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      const enCooldown = await db.prepare(`
+        SELECT id FROM message_log
+        WHERE patient_id = ? AND tipo = 'agendar_cooldown' AND created_at > ?
+        LIMIT 1
+      `).get(patient.id, corteAgendar);
+      if (enCooldown) {
+        console.log(`[Webhook] ⏸ Cooldown agendar activo para ${patient.nombre} — secretaria atiende`);
+        continue;
+      }
+
       // Guardar siempre el mensaje entrante
       await db.prepare(`
         INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
@@ -142,13 +154,16 @@ router.post('/', (req, res, next) => {
         const historial = await getHistorial(patient.id);
         const aiRes = await chatWithPatient(text, patient.nombre, clinicName, null, historial);
 
-        // Si quiere agendar y tenemos fecha+hora → crear cita
         let respuestaFinal = aiRes.respuesta;
-        if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
-          const resultado = await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
-          if (!resultado.ok) {
-            respuestaFinal = `Ese horario ya está ocupado. ¿Podés elegir otra hora?`;
-          }
+
+        // Si quiere agendar → mensaje fijo + cooldown 2h (la secretaria lo atiende)
+        if (aiRes.intencion === 'agendar') {
+          const settings = await getSettings(userId);
+          const clinicName = settings.clinic_name || 'la clínica';
+          respuestaFinal = `¡Perfecto! En breve te enviamos los horarios disponibles. 📅`;
+          await sendMessage(telefonoFormateado, respuestaFinal, userCreds);
+          await db.prepare(`INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado) VALUES (?, ?, 'agendar_cooldown', ?, 1)`).run(patient.id, userId, respuestaFinal);
+          continue;
         }
 
         await sendMessage(telefonoFormateado, respuestaFinal, userCreds);
@@ -181,11 +196,11 @@ router.post('/', (req, res, next) => {
         const clinicName = settings.clinic_name || 'la clínica';
         const historial = await getHistorial(patient.id);
         const aiRes = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt, historial);
-        if (aiRes.intencion === 'agendar' && aiRes.fecha_hora) {
-          const resultado = await crearCitaDesdeChat(patient, userId, aiRes.fecha_hora, db);
-          if (!resultado.ok) {
-            aiRes.respuesta = `Ese horario ya está ocupado. ¿Podés elegir otra hora?`;
-          }
+        if (aiRes.intencion === 'agendar') {
+          respuesta = `¡Perfecto! En breve te enviamos los horarios disponibles. 📅`;
+          await sendMessage(telefonoFormateado, respuesta, userCreds);
+          await db.prepare(`INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado) VALUES (?, ?, ?, 'agendar_cooldown', ?, 1)`).run(appt.id, patient.id, userId, respuesta);
+          continue;
         }
         respuesta = aiRes.respuesta;
       }
