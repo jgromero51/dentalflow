@@ -139,7 +139,8 @@ router.post('/', (req, res, next) => {
         const settings = await getSettings(userId);
         const clinicName = settings.clinic_name || 'la clínica';
         const userCreds = await getWhatsAppCredentials(userId);
-        const respuesta = await chatWithPatient(text, patient.nombre, clinicName, null);
+        const historial = await getHistorial(patient.id);
+        const respuesta = await chatWithPatient(text, patient.nombre, clinicName, null, historial);
         await sendMessage(telefonoFormateado, respuesta, userCreds);
         await db.prepare(`
           INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado)
@@ -171,7 +172,8 @@ router.post('/', (req, res, next) => {
         // Mensaje general: responder con IA
         const settings = await getSettings(userId);
         const clinicName = settings.clinic_name || 'la clínica';
-        respuesta = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt);
+        const historial = await getHistorial(patient.id);
+        respuesta = await chatWithPatient(text, patient.paciente_nombre || patient.nombre, clinicName, appt, historial);
       }
 
       // Enviar respuesta automática
@@ -187,6 +189,21 @@ router.post('/', (req, res, next) => {
     console.error('[Webhook] Error procesando mensaje:', err.message);
   }
 });
+
+async function getHistorial(patientId) {
+  try {
+    const rows = await db.prepare(`
+      SELECT tipo, mensaje FROM message_log
+      WHERE patient_id = ? AND tipo IN ('respuesta_entrada','respuesta_salida')
+      ORDER BY created_at DESC LIMIT 10
+    `).all(patientId);
+    // Invertir para orden cronológico y mapear a roles
+    return rows.reverse().map(r => ({
+      role: r.tipo === 'respuesta_entrada' ? 'user' : 'assistant',
+      content: r.mensaje
+    }));
+  } catch { return []; }
+}
 
 async function buildWelcomeMessage(userId) {
   try {
