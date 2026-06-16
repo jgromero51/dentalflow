@@ -7,8 +7,14 @@ const sqlite3 = require('sqlite3').verbose();
 const { Client } = require('pg');
 const path = require('path');
 
-const SQLITE_PATH = path.join(__dirname, 'backend', 'db', 'dentalflow.db');
-const PG_URL = 'postgresql://dentalflow_db_12vo_user:lrAga6FmgtgsJrVQF8pjJUdEz3QmJ1oU@dpg-d88jl80jo6nc73cvgni0-a.oregon-postgres.render.com/dentalflow_db_12vo';
+// Lee rutas/credenciales del entorno. En Render: DB_PATH=/data/dentalflow.db y DATABASE_URL del Postgres.
+const SQLITE_PATH = process.env.DB_PATH || path.join(__dirname, 'backend', 'db', 'dentalflow.db');
+const PG_URL = process.env.DATABASE_URL;
+
+if (!PG_URL) {
+  console.error('❌ Falta DATABASE_URL. Ejecutá:  DATABASE_URL="postgresql://..." node migrate_to_postgres.js');
+  process.exit(1);
+}
 
 function sqliteAll(db, sql) {
   return new Promise((resolve, reject) => {
