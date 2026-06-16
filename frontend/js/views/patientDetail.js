@@ -660,7 +660,7 @@ const PatientDetailView = {
                 onclick="PatientDetailView.printProformaById(${pf.id}, ${itemsAttr}, '${notasAttr}', ${parseFloat(pf.total)})">
                 📄 Ver PDF
               </button>
-              ${pf.estado === 'aprobada' || pf.estado === 'enviada' ? `
+              ${pf.estado === 'aprobada' || pf.estado === 'enviada' || !_isReceptionist ? `
               <button class="btn btn-secondary btn-sm" style="flex:1;min-width:90px;"
                 onclick="PatientDetailView.sendProformaWhatsAppConfirm(${pf.id}, '${(pf.paciente_nombre||this.patient?.nombre||'').replace(/'/g,"\\'")}', ${parseFloat(pf.total)})">
                 💬 WA Texto

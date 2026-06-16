@@ -34,6 +34,14 @@ const rateLimit = require('express-rate-limit');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ---- Guardas anti-caída: el proceso NO debe morir por un error no atrapado ----
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+
 // ---- Rate limiters ----
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // ventana de 15 minutos

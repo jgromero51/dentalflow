@@ -51,9 +51,17 @@ function authHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
+// Simulación explícita: SOLO cuando DEMO_MODE=true (pruebas locales sin enviar nada real).
 function isDemo(token) {
-  return DEMO_MODE || !token || token === 'EAAxxxxxxxxxx';
+  return DEMO_MODE;
 }
+
+// Credenciales ausentes o de placeholder → NO se puede enviar de verdad.
+function credsFaltantes(token) {
+  return !token || token === 'EAAxxxxxxxxxx';
+}
+
+const ERROR_SIN_CONFIG = 'WhatsApp no está configurado. Agregá el token y el Phone ID en Ajustes.';
 
 // ── Obtener credenciales de WhatsApp de un usuario (exportado) ────────────────
 
@@ -81,6 +89,7 @@ async function sendMessage(telefono, mensaje, creds = null) {
     console.log(`[WhatsApp Demo] Texto a +${to} | ${mensaje.substring(0, 60)}...`);
     return { success: true, demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const res = await axios.post(buildApiBase(phoneId), {
@@ -113,6 +122,7 @@ async function sendTemplate(telefono, { nombre, clinica, fecha, hora }, creds = 
     console.log(`[WhatsApp Demo] Template recordatorio a +${to} | ${nombre}`);
     return { success: true, demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const res = await axios.post(buildApiBase(phoneId), {
@@ -156,6 +166,7 @@ async function sendConfirmTemplate(telefono, { nombre, clinica, hora }, creds = 
     console.log(`[WhatsApp Demo] Template confirmación a +${to} | ${nombre}`);
     return { success: true, demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const res = await axios.post(buildApiBase(phoneId), {
@@ -198,6 +209,7 @@ async function sendRecallTemplate(telefono, { nombre, clinica }, creds = null) {
     console.log(`[WhatsApp Demo] Recall a +${to} | ${nombre}`);
     return { success: true, demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const res = await axios.post(buildApiBase(phoneId), {
@@ -236,6 +248,7 @@ async function uploadMedia(buffer, filename, mimeType, creds = null) {
   if (isDemo(token)) {
     return { success: true, mediaId: 'demo_media_id', demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const FormData = require('form-data');
@@ -268,6 +281,7 @@ async function sendDocument(telefono, mediaId, filename, caption = '', creds = n
     console.log(`[WhatsApp Demo] Documento a +${to} | ${filename}`);
     return { success: true, demo: true };
   }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
 
   try {
     const res = await axios.post(buildApiBase(phoneId), {

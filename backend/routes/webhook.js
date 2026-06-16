@@ -318,7 +318,8 @@ async function notificarDoctor(appt, patient, accion) {
       mensaje = `❌ *Cita cancelada*\n\n👤 ${patient.nombre}\n📅 ${fecha} a las ${hora} hs\n\nEl paciente indicó que NO va a asistir.`;
     }
 
-    await sendMessage(doctorPhone, mensaje);
+    const creds = await getWhatsAppCredentials(userId);
+    await sendMessage(doctorPhone, mensaje, creds);
     console.log(`[Webhook] Notificación al doctor enviada (${accion}) → ${doctorPhone}`);
   } catch (err) {
     console.error('[Webhook] Error al notificar al doctor:', err.message);

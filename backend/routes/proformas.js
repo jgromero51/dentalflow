@@ -4,7 +4,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
-const { sendMessage, uploadMedia, sendDocument } = require('../services/whatsapp');
+const { sendMessage, uploadMedia, sendDocument, getWhatsAppCredentials } = require('../services/whatsapp');
 const { generateProformaPDF } = require('../services/pdf');
 const { getSettings } = require('../db/database');
 
@@ -123,7 +123,8 @@ router.post('/:id/send-whatsapp', async (req, res) => {
 
     const mensaje = `🦷 *Presupuesto de Tratamiento*\n\n👤 ${row.paciente_nombre}\n📅 ${fecha}\n\n*Tratamientos:*\n${lineas}\n\n💰 *Total: S/ ${parseFloat(row.total).toFixed(2)}*${row.notas ? '\n\n📝 ' + row.notas : ''}\n\n_Ante cualquier consulta, no dude en contactarnos._`;
 
-    const result = await sendMessage(row.paciente_telefono, mensaje);
+    const creds  = await getWhatsAppCredentials(req.user.id);
+    const result = await sendMessage(row.paciente_telefono, mensaje, creds);
 
     if (result.success) {
       await db.prepare(`UPDATE proformas SET estado='enviada', updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(row.id);
@@ -157,8 +158,9 @@ router.post('/:id/send-whatsapp-pdf', async (req, res) => {
     const pdfBuffer = await generateProformaPDF(pf, patient, settings);
 
     // 2. Subir a WhatsApp Media
+    const creds     = await getWhatsAppCredentials(req.user.id);
     const filename  = `Proforma_${row.paciente_nombre.replace(/\s+/g, '_')}_${row.id}.pdf`;
-    const uploadRes = await uploadMedia(pdfBuffer, filename, 'application/pdf');
+    const uploadRes = await uploadMedia(pdfBuffer, filename, 'application/pdf', creds);
     if (!uploadRes.success) return res.status(500).json({ error: uploadRes.error });
 
     // 3. Enviar como documento
@@ -169,7 +171,7 @@ router.post('/:id/send-whatsapp-pdf', async (req, res) => {
     if (uploadRes.demo) {
       sendRes = { success: true, demo: true };
     } else {
-      sendRes = await sendDocument(row.paciente_telefono, uploadRes.mediaId, filename, caption);
+      sendRes = await sendDocument(row.paciente_telefono, uploadRes.mediaId, filename, caption, creds);
     }
 
     if (sendRes.success) {

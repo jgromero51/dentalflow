@@ -6,7 +6,7 @@ const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
 
-const { sendMessage } = require('../services/whatsapp');
+const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
 
 // GET /api/messages/conversations — lista de conversaciones del doctor (un hilo por paciente)
 router.get('/conversations', async (req, res) => {
@@ -76,7 +76,8 @@ router.post('/reply', async (req, res) => {
     const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id);
     if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
-    const result = await sendMessage(patient.telefono, mensaje);
+    const creds  = await getWhatsAppCredentials(uid);
+    const result = await sendMessage(patient.telefono, mensaje, creds);
 
     await db.prepare(`
       INSERT INTO message_log (patient_id, user_id, tipo, mensaje, enviado, error_detalle)
