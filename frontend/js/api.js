@@ -5,7 +5,7 @@
  *   - APK / OFFLINE (window.localDB disponible): usa IndexedDB directamente
  */
 
-const REMOTE_URL = 'https://dentalflow-mqgh.onrender.com';
+const REMOTE_URL = 'https://dentalflow-mcqh.onrender.com';
 const API_BASE   = (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:')) 
   ? `${REMOTE_URL}/api` 
   : '/api';

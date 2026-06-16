@@ -20,4 +20,4 @@ services:
       - key: WHATSAPP_VERIFY_TOKEN
         value: "dentalflow_secure_token_2024"
       - key: FRONTEND_URL
-        value: "https://dentalflow-mqgh.onrender.com"
+        value: "https://dentalflow-mcqh.onrender.com"
