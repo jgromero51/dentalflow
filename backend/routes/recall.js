@@ -38,14 +38,14 @@ function buildCandidatesQuery(userId, diasInactividad, diasEntreRecall) {
     // Última cita hace más de N días (o sin citas). En HAVING hay que usar la
     // expresión agregada, no el alias (PostgreSQL no acepta alias en HAVING).
     .havingRaw('(MAX(a.fecha_hora_inicio) < ? OR MAX(a.fecha_hora_inicio) IS NULL)', [corteInactividad])
-    .andHavingRaw('NOT EXISTS (?)',
+    .havingRaw('NOT EXISTS (?)',
       knex('appointments as fut')
         .select(knex.raw('1'))
         .where('fut.patient_id', knex.ref('p.id'))
         .where('fut.fecha_hora_inicio', '>', ahora.toISOString())
         .whereIn('fut.estado', ['pendiente', 'confirmada'])
     )
-    .andHavingRaw('(p.recall_enviado_at IS NULL OR p.recall_enviado_at < ?)', [corteRecall])
+    .havingRaw('(p.recall_enviado_at IS NULL OR p.recall_enviado_at < ?)', [corteRecall])
     .orderBy('ultima_cita', 'asc');
 }
 
@@ -65,7 +65,7 @@ router.get('/candidates', async (req, res) => {
     });
   } catch (err) {
     console.error('[Recall] Error candidatos:', err.message);
-    res.status(500).json({ error: 'Error al obtener candidatos de recall', detail: err.message });
+    res.status(500).json({ error: 'Error al obtener candidatos de recall' });
   }
 });
 
