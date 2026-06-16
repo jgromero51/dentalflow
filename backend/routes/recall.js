@@ -65,7 +65,7 @@ router.get('/candidates', async (req, res) => {
     });
   } catch (err) {
     console.error('[Recall] Error candidatos:', err.message);
-    res.status(500).json({ error: 'Error al obtener candidatos de recall' });
+    res.status(500).json({ error: 'Error al obtener candidatos de recall', detail: err.message });
   }
 });
 
