@@ -35,13 +35,9 @@ function buildCandidatesQuery(userId, diasInactividad, diasEntreRecall) {
     })
     .where('p.user_id', userId)
     .groupBy('p.id')
-    .having(function() {
-      this.where(function() {
-        // Última cita fue hace más de N días
-        this.where('ultima_cita', '<', corteInactividad)
-          .orWhereNull('ultima_cita');
-      });
-    })
+    // Última cita hace más de N días (o sin citas). En HAVING hay que usar la
+    // expresión agregada, no el alias (PostgreSQL no acepta alias en HAVING).
+    .havingRaw('(MAX(a.fecha_hora_inicio) < ? OR MAX(a.fecha_hora_inicio) IS NULL)', [corteInactividad])
     .andHavingRaw('NOT EXISTS (?)',
       knex('appointments as fut')
         .select(knex.raw('1'))
@@ -49,10 +45,7 @@ function buildCandidatesQuery(userId, diasInactividad, diasEntreRecall) {
         .where('fut.fecha_hora_inicio', '>', ahora.toISOString())
         .whereIn('fut.estado', ['pendiente', 'confirmada'])
     )
-    .andHaving(function() {
-      this.whereNull('p.recall_enviado_at')
-          .orWhere('p.recall_enviado_at', '<', corteRecall);
-    })
+    .andHavingRaw('(p.recall_enviado_at IS NULL OR p.recall_enviado_at < ?)', [corteRecall])
     .orderBy('ultima_cita', 'asc');
 }
 
