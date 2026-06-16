@@ -12,7 +12,7 @@ services:
       sizeGB: 1 # Disco permanente
     envVars:
       - key: NODE_ENV
-        value: development
+        value: production
       - key: DB_PATH
         value: /data/dentalflow.db
       - key: JWT_SECRET
