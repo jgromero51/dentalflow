@@ -59,6 +59,21 @@ router.post('/', (req, res, next) => {
     const changes = entry?.changes?.[0];
     const value   = changes?.value;
 
+    // Estados de entrega que envía Meta (sent/delivered/read/failed).
+    // Sirve para saber si un mensaje realmente llegó o falló (p.ej. fuera de la ventana de 24h).
+    const statuses = value?.statuses;
+    if (statuses && statuses.length) {
+      for (const st of statuses) {
+        if (st.status === 'failed') {
+          const e = st.errors?.[0] || {};
+          console.error(`[Webhook] ❌ Mensaje a +${st.recipient_id} NO ENTREGADO — ${e.title || ''} (code ${e.code}) ${e.error_data?.details || ''}`);
+        } else {
+          console.log(`[Webhook] 📬 Estado a +${st.recipient_id}: ${st.status}`);
+        }
+      }
+      return;
+    }
+
     // Solo procesar mensajes de texto entrantes
     const messages = value?.messages;
     if (!messages || messages.length === 0) return;
