@@ -61,14 +61,15 @@ async function initializeDatabase() {
     const count = parseInt(usersCount.count || 0, 10);
 
     if (count === 0) {
-      console.log('[DB] No se detectaron usuarios. Creando usuario Admin por defecto...');
-      const hash = await bcrypt.hash('admin1', 12);
-      await knex('users').insert({
-        username: 'admin',
-        password_hash: hash,
-        role: 'admin'
-      });
-      console.log('[DB] Usuario por defecto creado: Admin (admin1)');
+      // Sin contraseña por defecto conocida: usar la del entorno o generar una aleatoria fuerte.
+      const crypto = require('crypto');
+      const pass = process.env.DEFAULT_ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url');
+      const hash = await bcrypt.hash(pass, 12);
+      await knex('users').insert({ username: 'admin', password_hash: hash, role: 'admin' });
+      console.log('[DB] Usuario admin creado.');
+      if (!process.env.DEFAULT_ADMIN_PASSWORD) {
+        console.log(`[DB] ⚠️  Contraseña admin generada (cambiala al entrar): ${pass}`);
+      }
     }
   } catch (err) {
     console.error('[DB] Error en migraciones o inicializacion:', err.message);

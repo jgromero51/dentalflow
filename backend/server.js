@@ -42,6 +42,11 @@ process.on('uncaughtException', (err) => {
   console.error('[uncaughtException]', err);
 });
 
+// Aviso de configuración insegura en producción
+if (process.env.NODE_ENV === 'production' && !process.env.WHATSAPP_APP_SECRET) {
+  console.warn('[SEGURIDAD] ⚠️  Falta WHATSAPP_APP_SECRET — el webhook NO valida la firma de Meta (cualquiera podría enviar eventos falsos).');
+}
+
 // ---- Rate limiters ----
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // ventana de 15 minutos
