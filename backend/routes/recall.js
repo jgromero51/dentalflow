@@ -31,21 +31,22 @@ function buildCandidatesQuery(userId, diasInactividad, diasEntreRecall) {
     )
     .leftJoin('appointments as a', function() {
       this.on('a.patient_id', '=', 'p.id')
-          .andOnVal('a.estado', 'not in', ['cancelada']);
+          .andOnNotIn('a.estado', ['cancelada']);
     })
     .where('p.user_id', userId)
-    .groupBy('p.id')
-    // Última cita hace más de N días (o sin citas). En HAVING hay que usar la
-    // expresión agregada, no el alias (PostgreSQL no acepta alias en HAVING).
-    .havingRaw('(MAX(a.fecha_hora_inicio) < ? OR MAX(a.fecha_hora_inicio) IS NULL)', [corteInactividad])
-    .havingRaw('NOT EXISTS (?)',
-      knex('appointments as fut')
-        .select(knex.raw('1'))
-        .where('fut.patient_id', knex.ref('p.id'))
+    // Sin citas futuras pendientes/confirmadas (en WHERE, compatible SQLite/PG)
+    .whereNotExists(function() {
+      this.select(knex.raw('1')).from('appointments as fut')
+        .whereRaw('fut.patient_id = p.id')
         .where('fut.fecha_hora_inicio', '>', ahora.toISOString())
-        .whereIn('fut.estado', ['pendiente', 'confirmada'])
-    )
-    .havingRaw('(p.recall_enviado_at IS NULL OR p.recall_enviado_at < ?)', [corteRecall])
+        .whereIn('fut.estado', ['pendiente', 'confirmada']);
+    })
+    // No recibió recall recientemente (o nunca)
+    .whereRaw('(p.recall_enviado_at IS NULL OR p.recall_enviado_at < ?)', [corteRecall])
+    .groupBy('p.id')
+    // Última cita hace más de N días (o sin citas). En HAVING va la expresión
+    // agregada, no el alias (PostgreSQL no acepta alias en HAVING).
+    .havingRaw('(MAX(a.fecha_hora_inicio) < ? OR MAX(a.fecha_hora_inicio) IS NULL)', [corteInactividad])
     .orderBy('ultima_cita', 'asc');
 }
 
