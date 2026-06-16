@@ -28,6 +28,7 @@ router.post('/', async (req, res) => {
     'clinic_hours', 'clinic_welcome_msg', 'reminder_24h_active', 'reminder_4h_active',
     'doctor_phone', 'clinic_ruc', 'doctor_name', 'proforma_validez_dias',
     'whatsapp_phone_id', 'whatsapp_token',   // credenciales WhatsApp por clínica
+    'proforma_template_name',                // plantilla Meta para enviar proformas (entrega garantizada)
     'clinic_logo_url', 'moneda',             // extras útiles
   ];
   const uid = req.user.id;

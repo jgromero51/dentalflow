@@ -301,6 +301,48 @@ async function sendDocument(telefono, mediaId, filename, caption = '', creds = n
   }
 }
 
+/**
+ * Envía una PLANTILLA con header de DOCUMENTO (PDF).
+ * Se entrega SIEMPRE (no depende de la ventana de 24h) → uso profesional para proformas.
+ * @param {string} telefono
+ * @param {object} opts { mediaId, filename, templateName, bodyParams: string[] }
+ * @param {object|null} creds
+ */
+async function sendDocumentTemplate(telefono, { mediaId, filename, templateName, bodyParams = [] }, creds = null) {
+  const { token, phoneId } = creds || await resolveCredentials(null, null);
+  const to = normalizarTelefono(telefono);
+
+  if (isDemo(token)) {
+    console.log(`[WhatsApp Demo] Plantilla doc '${templateName}' a +${to} | ${filename}`);
+    return { success: true, demo: true };
+  }
+  if (credsFaltantes(token)) return { success: false, error: ERROR_SIN_CONFIG };
+
+  try {
+    const res = await axios.post(buildApiBase(phoneId), {
+      messaging_product: 'whatsapp',
+      to,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: process.env.WA_TEMPLATE_LANG || 'es_PE' },
+        components: [
+          { type: 'header', parameters: [{ type: 'document', document: { id: mediaId, filename } }] },
+          { type: 'body',   parameters: bodyParams.map(t => ({ type: 'text', text: String(t) })) },
+        ],
+      },
+    }, { headers: authHeaders(token), timeout: 15000 });
+
+    const messageId = res.data?.messages?.[0]?.id || null;
+    console.log(`[WhatsApp] Plantilla doc '${templateName}' enviada a +${to} - ID: ${messageId}`);
+    return { success: true, messageId };
+  } catch (err) {
+    const errorMsg = err.response?.data?.error?.message || err.message;
+    console.error(`[WhatsApp] Error plantilla doc a +${to}:`, JSON.stringify(err.response?.data || err.message));
+    return { success: false, error: errorMsg };
+  }
+}
+
 async function replyMessage(telefono, mensaje, creds = null) {
   return sendMessage(telefono, mensaje, creds);
 }
@@ -312,6 +354,7 @@ module.exports = {
   sendRecallTemplate,
   uploadMedia,
   sendDocument,
+  sendDocumentTemplate,
   replyMessage,
   getWhatsAppCredentials,
 };

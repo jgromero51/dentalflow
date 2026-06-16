@@ -4,7 +4,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db }  = require('../db/database');
-const { sendMessage, uploadMedia, sendDocument, getWhatsAppCredentials } = require('../services/whatsapp');
+const { sendMessage, uploadMedia, sendDocument, sendDocumentTemplate, getWhatsAppCredentials } = require('../services/whatsapp');
 const { generateProformaPDF } = require('../services/pdf');
 const { getSettings } = require('../db/database');
 
@@ -163,13 +163,24 @@ router.post('/:id/send-whatsapp-pdf', async (req, res) => {
     const uploadRes = await uploadMedia(pdfBuffer, filename, 'application/pdf', creds);
     if (!uploadRes.success) return res.status(500).json({ error: uploadRes.error });
 
-    // 3. Enviar como documento
+    // 3. Enviar.
+    //    Si hay plantilla configurada (proforma_template_name) → se entrega SIEMPRE,
+    //    sin depender de la ventana de 24h. Si no, cae al documento simple (solo llega
+    //    si el paciente escribió en las últimas 24h).
     const clinica = settings.clinic_name || 'tu clinica';
     const caption = `🦷 Presupuesto de tratamiento de ${clinica}`;
+    const tplName = settings.proforma_template_name;
     let sendRes;
 
     if (uploadRes.demo) {
       sendRes = { success: true, demo: true };
+    } else if (tplName) {
+      sendRes = await sendDocumentTemplate(row.paciente_telefono, {
+        mediaId: uploadRes.mediaId,
+        filename,
+        templateName: tplName,
+        bodyParams: [row.paciente_nombre, clinica, parseFloat(row.total).toFixed(2)],
+      }, creds);
     } else {
       sendRes = await sendDocument(row.paciente_telefono, uploadRes.mediaId, filename, caption, creds);
     }

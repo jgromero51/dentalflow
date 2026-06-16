@@ -156,6 +156,13 @@ const SettingsView = {
             </div>
             <div class="form-hint">Guardá primero, luego probá. Se enviará un mensaje de prueba usando la plantilla aprobada.</div>
           </div>
+          <div class="form-group">
+            <label class="form-label" for="s-wa-proforma-tpl">Plantilla de proformas (Meta)</label>
+            <input id="s-wa-proforma-tpl" class="form-control" type="text"
+              placeholder="Ej: envio_proforma"
+              value="${this._esc(s.proforma_template_name)}" />
+            <div class="form-hint">Nombre EXACTO de tu plantilla aprobada en Meta (con PDF + variables nombre, clínica, total). Si lo dejás vacío, la proforma solo llega si el paciente escribió en las últimas 24h.</div>
+          </div>
           <div class="settings-toggle-row" id="toggle-24h" onclick="SettingsView._toggle('reminder_24h_active','toggle-24h')">
             <div class="settings-toggle-info">
               <div class="settings-toggle-title">Recordatorio 24 horas antes</div>
@@ -392,6 +399,7 @@ const SettingsView = {
       doctor_phone:         get('s-doctor-phone'),
       whatsapp_phone_id:    get('s-wa-phone-id'),
       whatsapp_token:       get('s-wa-token'),
+      proforma_template_name: get('s-wa-proforma-tpl'),
     };
 
     // No enviar token vacío (no borrar el guardado)
