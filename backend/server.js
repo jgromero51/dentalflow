@@ -79,24 +79,10 @@ function getLocalIP() {
 }
 const LOCAL_IP = getLocalIP();
 
-// Orígenes permitidos en producción: el dominio web + los de la app Android/iOS (Capacitor).
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'https://localhost',
-  'capacitor://localhost',
-  'http://localhost',
-].filter(Boolean);
-
-app.use(cors({
-  origin: (origin, cb) => {
-    // En desarrollo, o peticiones sin origin (apps nativas/herramientas), o de la lista permitida.
-    if (!origin || process.env.NODE_ENV !== 'production' || allowedOrigins.includes(origin)) {
-      return cb(null, true);
-    }
-    return cb(new Error('Origen no permitido por CORS'));
-  },
-  credentials: true,
-}));
+// La API autentica con tokens Bearer (Authorization header), no con cookies de sesión,
+// por lo que restringir el origin no aporta seguridad real (CORS no frena un Bearer-token API)
+// y sí rompería la app móvil. Se refleja el origin de la petición.
+app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
 app.use(express.json({
   limit: '10mb',
