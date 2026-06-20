@@ -5,26 +5,26 @@
 
 /* ---- Variables CSS ---- */
 :root {
-  --primary:       #00b4d8;
+  --primary:       #22d3ee;
   --primary-dark:  #0096c7;
-  --primary-glow:  rgba(0,180,216,0.25);
-  --accent:        #48cae4;
+  --primary-glow:  rgba(34,211,238,0.35);
+  --accent:        #38bdf8;
   --success:       #06d6a0;
   --warning:       #ffd166;
   --danger:        #ef476f;
   --info:          #118ab2;
 
-  --bg-base:       #0d1117;
-  --bg-surface:    #161b22;
-  --bg-elevated:   #1c2230;
-  --bg-hover:      #21293a;
-  --bg-glass:      rgba(22,27,34,0.85);
+  --bg-base:       #080d1a;
+  --bg-surface:    #101a2e;
+  --bg-elevated:   #16213a;
+  --bg-hover:      #1d2a45;
+  --bg-glass:      rgba(13,21,40,0.82);
 
-  --text-primary:  #e6edf3;
-  --text-secondary:#8b949e;
-  --text-muted:    #484f58;
-  --border:        rgba(48,54,61,0.8);
-  --border-focus:  rgba(0,180,216,0.6);
+  --text-primary:  #e8eef7;
+  --text-secondary:#94a3b8;
+  --text-muted:    #5a6478;
+  --border:        rgba(56,74,112,0.45);
+  --border-focus:  rgba(34,211,238,0.6);
 
   --radius-sm:   8px;
   --radius-md:   12px;
@@ -1177,3 +1177,83 @@ input, textarea, select {
   border-radius: 6px;
   padding: 1px 7px;
 }
+
+/* ============================================================
+   MIDNIGHT PRO — capa de tema premium (glow cian + orbes + marca de agua)
+============================================================ */
+
+/* Fondo: degradado navy + dos orbes de luz cian que derivan lento */
+body {
+  background:
+    radial-gradient(1200px 700px at 100% -10%, rgba(34,211,238,0.06), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(56,189,248,0.05), transparent 60%),
+    var(--bg-base);
+  background-attachment: fixed;
+}
+body::before, body::after {
+  content: ""; position: fixed; z-index: -2; border-radius: 50%;
+  filter: blur(90px); pointer-events: none;
+}
+body::before {
+  width: 520px; height: 520px; top: -180px; left: -140px;
+  background: radial-gradient(circle, rgba(34,211,238,0.18), transparent 70%);
+  animation: mp-drift1 20s ease-in-out infinite;
+}
+body::after {
+  width: 460px; height: 460px; bottom: -200px; right: -160px;
+  background: radial-gradient(circle, rgba(56,189,248,0.14), transparent 70%);
+  animation: mp-drift2 26s ease-in-out infinite;
+}
+@keyframes mp-drift1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(90px,70px)} }
+@keyframes mp-drift2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-80px,-60px)} }
+
+/* Marca de agua del logo (diente) — fija, esquina inferior derecha */
+.app-main::after, .auth-wrapper::after {
+  content: ""; position: fixed; right: -40px; bottom: -50px;
+  width: 360px; height: 360px; z-index: -1; opacity: 0.05; pointer-events: none;
+  background: no-repeat center / contain
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 8C32 8 24 20 24 36c0 16 4 34 10 50 3 8 10 8 12 0l3-22c0-4 2-4 2 0l3 22c2 8 9 8 12 0 6-16 10-34 10-50C76 20 68 8 50 8z" fill="none" stroke="%2322d3ee" stroke-width="3"/></svg>');
+}
+
+/* Login: marca de agua centrada y tarjeta con glow cian */
+.auth-wrapper { position: relative; }
+.auth-wrapper::before {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 440px; height: 440px; transform: translate(-50%,-55%);
+  z-index: -1; opacity: 0.045; pointer-events: none;
+  background: no-repeat center / contain
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M50 8C32 8 24 20 24 36c0 16 4 34 10 50 3 8 10 8 12 0l3-22c0-4 2-4 2 0l3 22c2 8 9 8 12 0 6-16 10-34 10-50C76 20 68 8 50 8z" fill="none" stroke="%2322d3ee" stroke-width="3"/></svg>');
+}
+.auth-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(22,33,58,0.92), rgba(13,21,40,0.92));
+  border-color: rgba(34,211,238,0.18);
+  box-shadow: 0 0 0 1px rgba(34,211,238,0.06), 0 20px 60px rgba(0,0,0,0.55), 0 0 40px rgba(34,211,238,0.07);
+}
+
+/* Glow en botón primario */
+.btn-primary {
+  box-shadow: 0 4px 18px rgba(34,211,238,0.28);
+  transition: box-shadow var(--transition), transform var(--transition), filter var(--transition);
+}
+.btn-primary:hover { box-shadow: 0 6px 26px rgba(34,211,238,0.45); filter: brightness(1.06); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0) scale(0.99); }
+
+/* Nav activo con resplandor */
+.nav-btn.active { box-shadow: inset 0 0 0 1px rgba(34,211,238,0.25), 0 0 16px rgba(34,211,238,0.12); }
+
+/* Tarjetas de estadística: acento superior cian + número con brillo */
+.stat-card { position: relative; overflow: hidden; }
+.stat-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  opacity: 0.7;
+}
+.stat-card:hover {
+  border-color: rgba(34,211,238,0.45);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.45), 0 0 22px rgba(34,211,238,0.12);
+}
+.stat-value { text-shadow: 0 0 18px rgba(34,211,238,0.35); }
+
+/* Marca con leve resplandor en el ícono del header */
+.brand-name { text-shadow: 0 0 16px rgba(34,211,238,0.3); }
