@@ -77,6 +77,7 @@ const AppointmentsView = {
   async loadTab(tab) {
     this.currentTab = tab;
     const listEl = document.getElementById('appointments-list');
+    if (!listEl) return; // la vista pudo cambiar durante un await
     listEl.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loading-spinner" style="margin:0 auto;"></div></div>';
 
     try {
@@ -101,6 +102,7 @@ const AppointmentsView = {
 
   async loadByDate(fecha) {
     const listEl = document.getElementById('appointments-list');
+    if (!listEl) return; // la vista pudo cambiar durante un await
     listEl.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loading-spinner" style="margin:0 auto;"></div></div>';
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
 
