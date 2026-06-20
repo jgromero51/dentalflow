@@ -73,19 +73,6 @@ const LoginView = {
             </button>
           </div>
 
-          <div class="auth-switch">
-            ¿No tenés cuenta aún?
-            <button type="button" class="auth-switch-link" onclick="Router.navigate('setup')">
-              Crear cuenta
-            </button>
-          </div>
-
-          <div class="auth-switch">
-            ¿Te invitaron a una clínica?
-            <button type="button" class="auth-switch-link" onclick="Router.navigate('join')">
-              Unirse con código
-            </button>
-          </div>
         </div>
 
         <div class="auth-footer">DentalFlow v1.0 · Tu consultorio en la palma de tu mano</div>

@@ -44,6 +44,8 @@ router.get('/status', async (req, res) => {
 // POST /api/auth/setup — Primer uso o registro de usuario
 // ============================================================
 router.post('/setup', async (req, res) => {
+  // Auto-registro deshabilitado: solo el super admin crea cuentas.
+  return res.status(403).json({ error: 'El registro está deshabilitado. Pedile las credenciales al administrador.' });
   try {
     const { username, password, clinic_name, email } = req.body;
 
@@ -124,6 +126,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     }
 
+    if (user.active === false || user.active === 0) {
+      return res.status(403).json({ error: 'Tu cuenta está desactivada. Contactá al administrador.' });
+    }
+
     // Actualizar último acceso (sin esperar para no bloquear)
     db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
 
@@ -142,6 +148,8 @@ router.post('/login', async (req, res) => {
 // POST /api/auth/join — Unirse a una clínica con código de invitación
 // ============================================================
 router.post('/join', async (req, res) => {
+  // Auto-registro deshabilitado: solo el super admin crea cuentas.
+  return res.status(403).json({ error: 'El registro está deshabilitado. Pedile las credenciales al administrador.' });
   try {
     const { username, password, doctor_name, invite_code, email } = req.body;
     if (!username || !password || !invite_code) {
@@ -315,34 +323,23 @@ router.post('/google', async (req, res) => {
     let user = await db.prepare('SELECT * FROM users WHERE email = ?').get(email);
 
     if (!user) {
-      // Registrar nuevo usuario
-      const existingTotal = await db.prepare('SELECT COUNT(*) as count FROM users').get();
-      const role = existingTotal.count === 0 ? 'admin' : 'user';
-      // Generar una contraseña aleatoria para que password_hash no sea null
-      const randomPass = require('crypto').randomBytes(16).toString('hex');
-      const hash = await bcrypt.hash(randomPass, 12);
-      // Username base = email prefix
-      let username = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
-      const existingUser = await db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-      if (existingUser) username = `${username}_${Date.now().toString().slice(-4)}`;
-
-      const result = await db.prepare(
-        'INSERT INTO users(username, password_hash, role, email, oauth_provider, oauth_id) VALUES(?, ?, ?, ?, ?, ?)'
-      ).run(username, hash, role, email, 'google', googleId);
-
-      user = { id: result.lastInsertRowid, username, role };
-      console.log(`[Auth] ✅ Usuario creado vía Google: "${username}"`);
-    } else {
-      // Actualizar oauth info si faltaba
-      if (!user.oauth_provider) {
-        await db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ? WHERE id = ?').run('google', googleId, user.id);
-      }
-      db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
-      console.log(`[Auth] ✅ Login vía Google: "${user.username}"`);
+      // Auto-registro deshabilitado: solo el super admin crea cuentas.
+      return res.status(403).json({ error: 'No existe una cuenta con ese correo. Pedile las credenciales al administrador.' });
     }
 
-    const token = signToken({ id: user.id, username: user.username, role: user.role });
-    res.json({ success: true, token, username: user.username, role: user.role });
+    if (user.active === false || user.active === 0) {
+      return res.status(403).json({ error: 'Tu cuenta está desactivada. Contactá al administrador.' });
+    }
+
+    // Actualizar oauth info si faltaba
+    if (!user.oauth_provider) {
+      await db.prepare('UPDATE users SET oauth_provider = ?, oauth_id = ? WHERE id = ?').run('google', googleId, user.id);
+    }
+    db.prepare(`UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?`).run(user.id).catch(() => {});
+    console.log(`[Auth] ✅ Login vía Google: "${user.username}"`);
+
+    const token = signToken({ id: user.id, username: user.username, role: user.role, clinic_id: user.clinic_id, doctor_name: user.doctor_name });
+    res.json({ success: true, token, username: user.username, role: user.role, clinic_id: user.clinic_id });
   } catch (err) {
     console.error('[Auth] Error en login de Google:', err.message);
     res.status(500).json({ error: 'Error de autenticación con Google.' });

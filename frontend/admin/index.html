@@ -8,18 +8,39 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/admin.css">
+  <style>
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:16px;}
+    .modal-overlay.open{display:flex;}
+    .modal{background:#fff;border-radius:14px;padding:26px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+    .modal h3{margin:0 0 4px;font-size:1.25rem;}
+    .modal p.sub{margin:0 0 18px;color:#64748b;font-size:.9rem;}
+    .modal .input-group{margin-bottom:14px;}
+    .modal label{display:block;font-size:.82rem;font-weight:600;color:#334155;margin-bottom:5px;}
+    .modal input{width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:.95rem;box-sizing:border-box;}
+    .modal-actions{display:flex;gap:10px;margin-top:8px;}
+    .modal-actions .btn-primary{flex:1;}
+    .form-msg{font-size:.85rem;margin-top:10px;min-height:18px;}
+    .form-msg.error{color:#dc2626;}
+    .form-msg.ok{color:#16a34a;}
+    .badge.inactive{background:#f1f5f9;color:#94a3b8;}
+    .row-inactive{opacity:.5;}
+    .act-btns{display:flex;gap:6px;flex-wrap:wrap;}
+    .btn-mini{font-size:.78rem;padding:5px 9px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;}
+    .btn-mini.danger{color:#dc2626;border-color:#fca5a5;}
+    .btn-mini.ok{color:#16a34a;border-color:#86efac;}
+  </style>
 </head>
 <body>
 
-  <!-- PANTALLA DE LOGIN DEL ADMIN -->
+  <!-- LOGIN DEL SUPER ADMIN -->
   <div id="login-view" class="view active">
     <div class="login-box">
       <div class="brand">
         <span class="icon">💎</span>
         <h1>DentalFlow Admin</h1>
       </div>
-      <p>Acceso exclusivo para administradores del sistema.</p>
-      
+      <p>Acceso exclusivo del super administrador.</p>
+
       <form id="admin-login-form">
         <div class="input-group">
           <label>Usuario Maestro</label>
@@ -35,7 +56,7 @@
     </div>
   </div>
 
-  <!-- DASHBOARD DEL ADMIN -->
+  <!-- DASHBOARD -->
   <div id="dashboard-view" class="view">
     <div class="sidebar">
       <div class="brand">
@@ -45,7 +66,6 @@
       <nav class="side-nav">
         <button class="nav-btn active">📊 Resumen General</button>
         <button class="nav-btn">👥 Clínicas / Usuarios</button>
-        <button class="nav-btn">⚙️ Configuración Servidor</button>
       </nav>
       <div class="sidebar-footer">
         <button id="btn-logout" class="nav-btn danger">🚪 Cerrar Sesión</button>
@@ -55,11 +75,10 @@
     <main class="main-content">
       <header class="top-header">
         <h1>Panel Maestro</h1>
-        <div class="admin-profile">Administrador Global</div>
+        <div class="admin-profile">Super Administrador</div>
       </header>
 
       <div class="content-scroll">
-        <!-- Estadísticas -->
         <div class="stats-grid" id="stats-container">
           <div class="stat-card skeleton"></div>
           <div class="stat-card skeleton"></div>
@@ -67,21 +86,22 @@
           <div class="stat-card skeleton"></div>
         </div>
 
-        <!-- Tabla de Usuarios -->
         <section class="data-section">
           <div class="section-header">
-            <h2>Clínicas Registradas</h2>
-            <button class="btn-secondary">Exportar CSV</button>
+            <h2>Cuentas Registradas</h2>
+            <button class="btn-primary" id="btn-new-user">+ Crear cuenta</button>
           </div>
-          
+
           <div class="table-wrapper">
             <table class="data-table">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Usuario</th>
+                  <th>Clínica</th>
+                  <th>Correo</th>
                   <th>Rol</th>
-                  <th>Alta en el Sistema</th>
+                  <th>Alta</th>
                   <th>Última Conexión</th>
                   <th>Pacientes</th>
                   <th>Citas</th>
@@ -89,13 +109,67 @@
                 </tr>
               </thead>
               <tbody id="users-table-body">
-                <tr><td colspan="8" class="loading-cell">Cargando datos del servidor...</td></tr>
+                <tr><td colspan="10" class="loading-cell">Cargando datos del servidor...</td></tr>
               </tbody>
             </table>
           </div>
         </section>
       </div>
     </main>
+  </div>
+
+  <!-- MODAL CREAR CUENTA -->
+  <div class="modal-overlay" id="create-modal">
+    <div class="modal">
+      <h3>Crear cuenta de clínica</h3>
+      <p class="sub">Cada cuenta es dueña de su propia clínica y datos.</p>
+      <form id="create-form">
+        <div class="input-group">
+          <label>Nombre de la clínica *</label>
+          <input type="text" id="nu-clinic" required>
+        </div>
+        <div class="input-group">
+          <label>Nombre del doctor</label>
+          <input type="text" id="nu-doctor">
+        </div>
+        <div class="input-group">
+          <label>Usuario *</label>
+          <input type="text" id="nu-user" required autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Correo (opcional)</label>
+          <input type="email" id="nu-email" autocomplete="off">
+        </div>
+        <div class="input-group">
+          <label>Contraseña *</label>
+          <input type="text" id="nu-pass" required autocomplete="off">
+        </div>
+        <div class="form-msg" id="create-msg"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btn-cancel-create">Cancelar</button>
+          <button type="submit" class="btn-primary">Crear cuenta</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL RESET PASSWORD -->
+  <div class="modal-overlay" id="reset-modal">
+    <div class="modal">
+      <h3>Restablecer contraseña</h3>
+      <p class="sub" id="reset-sub"></p>
+      <form id="reset-form">
+        <div class="input-group">
+          <label>Nueva contraseña *</label>
+          <input type="text" id="rp-pass" required autocomplete="off">
+        </div>
+        <div class="form-msg" id="reset-msg"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btn-cancel-reset">Cancelar</button>
+          <button type="submit" class="btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="js/admin.js"></script>

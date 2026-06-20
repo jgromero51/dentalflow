@@ -45,10 +45,17 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
     return next();
   }
   res.status(403).json({ error: 'Acceso denegado. Se requieren permisos de administrador.' });
 }
 
-module.exports = { signToken, requireAuth, requireAdmin };
+function requireSuperAdmin(req, res, next) {
+  if (req.user && req.user.role === 'superadmin') {
+    return next();
+  }
+  res.status(403).json({ error: 'Acceso denegado. Solo el super administrador.' });
+}
+
+module.exports = { signToken, requireAuth, requireAdmin, requireSuperAdmin };
