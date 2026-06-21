@@ -214,7 +214,7 @@ const PatientDetailView = {
       catalogItems = res.data || [];
     } catch (_) {}
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0]; // fecha de Perú (UTC-5)
     const opts = catalogItems.map(c =>
       `<option value="${c.nombre}" data-precio="${c.precio}" data-categoria="${c.categoria}">`
     ).join('');

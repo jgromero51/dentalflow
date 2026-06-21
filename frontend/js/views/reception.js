@@ -37,7 +37,7 @@ const ReceptionView = {
 
   async _load(container) {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0]; // fecha de Perú (UTC-5)
       const [resHoy, resConsulta] = await Promise.all([
         api.appointments.list({ fecha: today }),
         api.clinic.consultaStatus().catch(() => ({ data: [] })),

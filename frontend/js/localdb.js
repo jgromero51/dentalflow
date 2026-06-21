@@ -230,7 +230,7 @@ const localAppointments = {
 
   async today() {
     await _IDB.open();
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0]; // fecha de Perú (UTC-5)
     let all = await _IDB.getAll('appointments');
     all = all.filter(a => a.fecha_hora_inicio.startsWith(hoy));
     all.sort((a, b) => a.fecha_hora_inicio.localeCompare(b.fecha_hora_inicio));

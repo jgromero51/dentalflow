@@ -75,7 +75,7 @@ router.get('/', async (req, res) => {
 // GET /api/appointments/today
 router.get('/today', async (req, res) => {
   try {
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = new Date(Date.now() - 5*60*60*1000).toISOString().split('T')[0]; // fecha de Perú (UTC-5)
     const data = await db.prepare(`
       SELECT a.*, p.nombre as paciente_nombre, p.telefono as paciente_telefono
       FROM appointments a
