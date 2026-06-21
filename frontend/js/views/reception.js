@@ -39,7 +39,7 @@ const ReceptionView = {
     try {
       const today = new Date().toISOString().split('T')[0];
       const [resHoy, resConsulta] = await Promise.all([
-        api.appointments.list({ startDate: today, endDate: today }),
+        api.appointments.list({ fecha: today }),
         api.clinic.consultaStatus().catch(() => ({ data: [] })),
       ]);
       const citas    = (resHoy.data || []).sort((a,b) => a.fecha_hora_inicio.localeCompare(b.fecha_hora_inicio));

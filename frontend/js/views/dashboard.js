@@ -22,7 +22,7 @@ const DashboardView = {
     try {
       const today = new Date().toISOString().split('T')[0];
       const [resHoy, resStats, resUpcoming, resSettings, resAnalytics] = await Promise.all([
-        api.appointments.list({ startDate: today, endDate: today }),
+        api.appointments.list({ fecha: today }),
         api.appointments.stats(this._currentMes),
         api.appointments.upcoming(),
         api.settings.get().catch(() => ({ data: {} })),
