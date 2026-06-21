@@ -13,5 +13,8 @@ backend/db/*.db
 .DS_Store
 Thumbs.db
 
+# Backups automáticos (contienen PII de pacientes y tokens de WhatsApp)
+backups/
+
 # Build artifacts
 android/app/build/

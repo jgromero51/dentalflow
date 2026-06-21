@@ -111,6 +111,13 @@ function subCard(title, n, cls) {
 function plainCard(title, n) {
   return `<div class="stat-card"><div class="stat-title">${title}</div><div class="stat-number">${n ?? 0}</div></div>`;
 }
+// Pill de WhatsApp: token propio, número global compartido, o ninguno.
+function waPill(source, configured) {
+  const src = source || (configured ? 'compartido' : 'no');
+  if (src === 'propio')     return '<span class="pill wa-ok">Propio</span>';
+  if (src === 'compartido') return '<span class="pill wa-ok">Compartido</span>';
+  return '<span class="pill wa-no">No</span>';
+}
 
 // --- USERS / CLINICS ---
 async function loadUsers() {
@@ -130,7 +137,7 @@ async function loadUsers() {
           <td><strong>${esc(u.username)}</strong>${isSuper ? ' <span class="pill active">maestro</span>' : ''}</td>
           <td>${esc(u.clinic_name || '—')}</td>
           <td>${isSuper ? '—' : `<span class="pill ${st}">${stLabel(st)}</span>`}</td>
-          <td>${isSuper ? '—' : `<span class="pill ${u.whatsapp_configured ? 'wa-ok' : 'wa-no'}">${u.whatsapp_configured ? 'Sí' : 'No'}</span>`}</td>
+          <td>${isSuper ? '—' : waPill(u.whatsapp_source, u.whatsapp_configured)}</td>
           <td>${msg.patients_count}</td>
           <td>${msg.appointments_count}</td>
           <td>${msg.messages_enviados}/${msg.messages_total}${msg.messages_fallidos ? ` <span style="color:#dc2626">(${msg.messages_fallidos}✗)</span>` : ''}</td>
@@ -244,7 +251,7 @@ window.openDetail = async (id) => {
       <p class="sub">Usuario: <strong>${esc(u.username)}</strong> · ${esc(u.email || 'sin correo')} · alta ${fdate(u.created_at)}</p>
       <div>
         <span class="pill ${d.sub_state}">${stLabel(d.sub_state)}</span>
-        <span class="pill ${d.whatsapp_configured ? 'wa-ok' : 'wa-no'}">WhatsApp ${d.whatsapp_configured ? 'conectado' : 'pendiente'}</span>
+        <span class="pill ${d.whatsapp_configured ? 'wa-ok' : 'wa-no'}">WhatsApp ${d.whatsapp_source === 'propio' ? 'propio' : d.whatsapp_source === 'compartido' ? 'compartido' : 'pendiente'}</span>
         <span class="pill ${u.active === false || u.active === 0 ? 'vencida' : 'active'}">${u.active === false || u.active === 0 ? 'Desactivada' : 'Activa'}</span>
       </div>
       <div class="detail-grid">

@@ -5,7 +5,7 @@
 const express = require('express');
 const router  = express.Router();
 const { db, toLocalISO, sqlYearMonth } = require('../db/database');
-const { sendTemplate }   = require('../services/whatsapp');
+const { sendTemplate, getWhatsAppCredentials }   = require('../services/whatsapp');
 
 function calcularFin(inicioISO, duracionMinutos) {
   const inicio = new Date(inicioISO);
@@ -442,12 +442,13 @@ router.post('/:id/send-confirmation', async (req, res) => {
     const fecha = d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long' });
     const hora  = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
+    const creds  = await getWhatsAppCredentials(uid);
     const result = await sendTemplate(appt.paciente_telefono, {
       nombre: appt.paciente_nombre,
       clinica,
       fecha,
       hora,
-    });
+    }, creds);
 
     await db.prepare(`
       INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado, error_detalle)

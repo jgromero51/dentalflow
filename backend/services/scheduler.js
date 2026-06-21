@@ -30,8 +30,12 @@ function debeEnviar24h(fechaHoraInicio) {
   return Math.abs(minActual - 12 * 60) <= VENTANA_TOLERANCIA;
 }
 
-// Recordatorio 4h: exactamente 4h antes en hora Perú.
-// Excepción: cita a las 8 AM o 9 AM → recordatorio a las 7 AM.
+// Horario permitido para recordatorios (hora Perú): 7:00 AM a 8:00 PM.
+const ENVIO_MIN = 7 * 60;   // 7:00 AM
+const ENVIO_MAX = 20 * 60;  // 8:00 PM
+
+// Recordatorio 4h: 4h antes en hora Perú, pero acotado al horario permitido
+// para no molestar de madrugada. Ej: cita 9 AM → 7 AM (2h antes); cita 10 AM → 7 AM.
 function debeEnviar4h(fechaHoraInicio) {
   const ahoraPeru = toPeruTime(new Date());
   const citaPeru  = toPeruTime(new Date(fechaHoraInicio));
@@ -40,15 +44,14 @@ function debeEnviar4h(fechaHoraInicio) {
   if (ahoraPeru.toISOString().slice(0, 10) !== citaPeru.toISOString().slice(0, 10)) return false;
 
   const minActual = ahoraPeru.getHours() * 60 + ahoraPeru.getMinutes();
-  const horaCita  = citaPeru.getHours();
+  const minCita   = citaPeru.getHours() * 60 + citaPeru.getMinutes();
 
-  if (horaCita >= 8 && horaCita <= 11) {
-    // Citas 8, 9, 10 u 11 AM → recordatorio a las 7:00 AM
-    return Math.abs(minActual - 7 * 60) <= VENTANA_TOLERANCIA;
-  }
+  // 4h antes, recortado a [7:00 AM, 8:00 PM]
+  let minEnvio = minCita - 240;
+  if (minEnvio < ENVIO_MIN) minEnvio = ENVIO_MIN;
+  if (minEnvio > ENVIO_MAX) minEnvio = ENVIO_MAX;
 
-  const minCita = citaPeru.getHours() * 60 + citaPeru.getMinutes();
-  return Math.abs(minActual - (minCita - 240)) <= VENTANA_TOLERANCIA;
+  return Math.abs(minActual - minEnvio) <= VENTANA_TOLERANCIA;
 }
 
 async function checkAndSendReminders() {

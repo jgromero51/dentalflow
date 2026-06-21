@@ -73,7 +73,7 @@ async function messageCountsByClinic() {
   return map;
 }
 
-/** Set de user_ids que tienen WhatsApp configurado (token no vacío). */
+/** Set de user_ids que tienen WhatsApp configurado con TOKEN PROPIO (no vacío). */
 async function whatsappConfiguredSet() {
   const ids = await knex('settings')
     .where('key', 'whatsapp_token')
@@ -81,6 +81,19 @@ async function whatsappConfiguredSet() {
     .andWhere('value', '!=', '')
     .pluck('user_id');
   return new Set(ids);
+}
+
+/** ¿Hay número global compartido (env)? Entonces todas las clínicas pueden enviar. */
+function hasGlobalWhatsApp() {
+  const t = process.env.WHATSAPP_TOKEN;
+  return !!t && t !== 'EAAxxxxxxxxxx';
+}
+
+/** Estado de WhatsApp de un usuario: 'propio' | 'compartido' | 'no'. */
+function whatsappSource(userId, waSet, global) {
+  if (waSet.has(userId)) return 'propio';
+  if (global) return 'compartido';
+  return 'no';
 }
 
 // ============================================================
@@ -118,10 +131,11 @@ router.get('/overview', async (req, res) => {
       if (st === 'active') mrr += (PLAN_PRICES[s.plan] || 0);
     }
 
-    // Cuántos owners tienen WhatsApp configurado
+    // Cuántos owners pueden enviar WhatsApp (token propio o número global compartido)
     const waSet = await whatsappConfiguredSet();
+    const global = hasGlobalWhatsApp();
     const owners = await knex('users').where('role', '!=', 'superadmin').pluck('id');
-    const waConfigured = owners.filter(id => waSet.has(id)).length;
+    const waConfigured = global ? owners.length : owners.filter(id => waSet.has(id)).length;
 
     res.json({
       data: {
@@ -158,6 +172,7 @@ router.get('/users', async (req, res) => {
       .orderBy('u.created_at', 'desc');
 
     const [msgMap, waSet] = await Promise.all([messageCountsByClinic(), whatsappConfiguredSet()]);
+    const global = hasGlobalWhatsApp();
 
     for (let user of users) {
       if (user.clinic_id) {
@@ -177,7 +192,8 @@ router.get('/users', async (req, res) => {
         user.stats = { patients_count: 0, appointments_count: 0, messages_total: 0, messages_enviados: 0, messages_fallidos: 0 };
       }
       user.sub_state = subState({ status: user.sub_status, trial_ends_at: user.trial_ends_at, cortesia_hasta: user.cortesia_hasta });
-      user.whatsapp_configured = waSet.has(user.id);
+      user.whatsapp_source = whatsappSource(user.id, waSet, global);
+      user.whatsapp_configured = user.whatsapp_source !== 'no';
     }
 
     res.json({ data: users });
@@ -216,6 +232,7 @@ router.get('/users/:id/detail', async (req, res) => {
     ]);
 
     const waSet = await whatsappConfiguredSet();
+    const waSource = whatsappSource(user.id, waSet, hasGlobalWhatsApp());
     const total = parseInt(msg?.total || 0, 10);
     const enviados = parseInt(msg?.enviados || 0, 10);
 
@@ -223,7 +240,8 @@ router.get('/users/:id/detail', async (req, res) => {
       data: {
         user,
         sub_state: subState({ status: user.sub_status, trial_ends_at: user.trial_ends_at, cortesia_hasta: user.cortesia_hasta }),
-        whatsapp_configured: waSet.has(user.id),
+        whatsapp_source: waSource,
+        whatsapp_configured: waSource !== 'no',
         members,
         counts: {
           patients: parseInt(patients?.n || 0, 10),

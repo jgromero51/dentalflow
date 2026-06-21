@@ -73,7 +73,7 @@ router.post('/reply', async (req, res) => {
     const { patient_id, mensaje } = req.body;
     if (!patient_id || !mensaje) return res.status(400).json({ error: 'Faltan campos' });
 
-    const patient = await db.prepare('SELECT * FROM patients WHERE id = ?').get(patient_id);
+    const patient = await db.prepare('SELECT * FROM patients WHERE id = ? AND user_id = ?').get(patient_id, uid);
     if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
 
     const creds  = await getWhatsAppCredentials(uid);
