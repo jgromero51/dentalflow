@@ -169,7 +169,8 @@ router.post('/:id/send-whatsapp-pdf', async (req, res) => {
     //    si el paciente escribió en las últimas 24h).
     const clinica = settings.clinic_name || 'tu clinica';
     const caption = `🦷 Presupuesto de tratamiento de ${clinica}`;
-    const tplName = settings.proforma_template_name;
+    // Plantilla: por clínica (Ajustes) o global por env (número compartido).
+    const tplName = settings.proforma_template_name || process.env.WA_PROFORMA_TEMPLATE;
     let sendRes;
 
     if (uploadRes.demo) {
