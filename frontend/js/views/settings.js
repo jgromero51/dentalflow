@@ -184,6 +184,26 @@ const SettingsView = {
         </div>
       </div>
 
+      <!-- Sección: Notificaciones push -->
+      <div class="settings-section">
+        <div class="settings-section-label">
+          <span class="settings-section-icon">🔔</span>
+          Notificaciones en este teléfono
+        </div>
+        <div class="settings-card">
+          <div class="form-hint" style="margin-bottom:14px;padding:10px 12px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--primary);">
+            Recibí un aviso en el teléfono cuando un paciente responde o confirma una cita, <strong>aunque la app esté cerrada</strong>.
+            En iPhone debés tener la app agregada a la pantalla de inicio (iOS 16.4+).
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary" id="push-enable-btn" onclick="SettingsView._enablePush()">
+              🔔 Activar notificaciones
+            </button>
+            <span id="push-status" class="form-hint" style="margin:0;"></span>
+          </div>
+        </div>
+      </div>
+
       <!-- Sección: Mensaje de bienvenida -->
       <div class="settings-section">
         <div class="settings-section-label">
@@ -365,6 +385,28 @@ const SettingsView = {
     `;
     this.renderCatalog();
     if (Auth.getUser()?.role === 'owner') this.renderTeam();
+    this._refreshPushStatus();
+  },
+
+  async _refreshPushStatus() {
+    const el  = document.getElementById('push-status');
+    const btn = document.getElementById('push-enable-btn');
+    if (!el || !window.Push) return;
+    const st = await Push.status();
+    const map = {
+      subscribed:  ['✅ Activadas en este dispositivo', true],
+      denied:      ['🚫 Bloqueadas — activalas desde los ajustes del teléfono', true],
+      unsupported: ['Este dispositivo no soporta notificaciones push', true],
+      default:     ['', false],
+    };
+    const [txt, disable] = map[st] || map.default;
+    el.textContent = txt;
+    if (disable && st !== 'default') btn.style.display = 'none';
+  },
+
+  async _enablePush() {
+    const ok = await Push.subscribe(false);
+    if (ok) this._refreshPushStatus();
   },
 
   _esc(val) {

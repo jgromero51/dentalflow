@@ -28,6 +28,7 @@ const clinicRouter           = require('./routes/clinic');
 const recallRouter           = require('./routes/recall');
 const notificationsRouter    = require('./routes/notifications');
 const exportRouter           = require('./routes/export');
+const pushRouter             = require('./routes/push');
 
 const rateLimit = require('express-rate-limit');
 
@@ -116,6 +117,7 @@ app.use('/api/clinic',       requireAuth, clinicScope, requireSubscription, clin
 app.use('/api/recall',       requireAuth, clinicScope, requireSubscription, recallRouter);
 app.use('/api/notifications',requireAuth, clinicScope, requireSubscription, notificationsRouter);
 app.use('/api/export',       requireAuth, clinicScope, requireSubscription, exportRouter);
+app.use('/api/push',         requireAuth, pushRouter);
 app.use('/api/admin',        adminRouter);
 
 app.get('/api/health', (req, res) => {

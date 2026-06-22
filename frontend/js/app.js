@@ -334,10 +334,86 @@ window.addEventListener('appinstalled', () => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('[PWA] Service Worker registrado:', reg.scope))
+      .then(reg => {
+        console.log('[PWA] Service Worker registrado:', reg.scope);
+        // Si ya dio permiso antes, re-suscribir en silencio (renueva endpoints caducados)
+        if (Auth.isLoggedIn() && Notification.permission === 'granted') {
+          Push.subscribe(true).catch(() => {});
+        }
+      })
       .catch(err => console.warn('[PWA] Error SW:', err));
   });
 }
+
+// ============================================================
+// PUSH — notificaciones al teléfono aunque la app esté cerrada
+// ============================================================
+const Push = {
+  supported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  },
+
+  _urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  },
+
+  // silent=true → no pide permiso ni muestra toasts (re-suscripción automática)
+  async subscribe(silent = false) {
+    if (!this.supported()) {
+      if (!silent && window.Toast) Toast.error('Este dispositivo no soporta notificaciones push.');
+      return false;
+    }
+    try {
+      const { publicKey, enabled } = await api.push.publicKey();
+      if (!enabled || !publicKey) {
+        if (!silent && window.Toast) Toast.error('El servidor no tiene las notificaciones push configuradas.');
+        return false;
+      }
+
+      if (Notification.permission !== 'granted') {
+        if (silent) return false;
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          if (window.Toast) Toast.info('Notificaciones no activadas. Podés activarlas cuando quieras.');
+          return false;
+        }
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: this._urlBase64ToUint8Array(publicKey),
+        });
+      }
+      await api.push.subscribe(sub.toJSON());
+      if (!silent && window.Toast) Toast.success('🔔 Notificaciones activadas en este dispositivo');
+      return true;
+    } catch (err) {
+      console.warn('[Push] Error al suscribir:', err);
+      if (!silent && window.Toast) Toast.error('No se pudo activar: ' + (err.message || err));
+      return false;
+    }
+  },
+
+  async status() {
+    if (!this.supported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    if (Notification.permission !== 'granted') return 'default';
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      return sub ? 'subscribed' : 'default';
+    } catch { return 'default'; }
+  },
+};
+window.Push = Push;
 
 // ============================================================
 // CLINIC NAME — carga y actualiza el header con el nombre de la clínica

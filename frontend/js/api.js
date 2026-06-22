@@ -207,6 +207,12 @@ const remoteApi = {
     markRead:  () => remoteApi.request('PUT', '/notifications/mark-read'),
   },
 
+  push: {
+    publicKey:   ()    => remoteApi.request('GET',  '/push/public-key'),
+    subscribe:   (sub) => remoteApi.request('POST', '/push/subscribe', sub),
+    unsubscribe: (endpoint) => remoteApi.request('POST', '/push/unsubscribe', { endpoint }),
+  },
+
   recall: {
     candidates: (p = {}) => remoteApi.request('GET', `/recall/candidates?${new URLSearchParams(p)}`),
     sendAll:    (data)   => remoteApi.request('POST', '/recall/send', data),
