@@ -9,6 +9,7 @@ const router  = express.Router();
 const { db, getSettings, sqlNow, sqlColGtNow } = require('../db/database');
 const { processPatientResponse, chatWithPatient } = require('../services/ai');
 const { sendMessage, getWhatsAppCredentials } = require('../services/whatsapp');
+const { sendPushToUser } = require('../services/push');
 
 // GET /api/webhook — Verificación inicial de Meta
 router.get('/', async (req, res) => {
@@ -177,6 +178,13 @@ router.post('/', (req, res, next) => {
         INSERT INTO message_log (appointment_id, patient_id, user_id, tipo, mensaje, enviado)
         VALUES (?, ?, ?, 'respuesta_entrada', ?, 1)
       `).run(appt?.id || null, patient.id, userId, text);
+
+      // Push al teléfono del usuario (aunque la app esté cerrada)
+      await sendPushToUser(userId, {
+        title: `💬 ${patient.nombre}`,
+        body: text.length > 120 ? text.slice(0, 120) + '…' : text,
+        url: `/#messages/${patient.id}`,
+      });
 
       // Sin cita pendiente → responder con IA siempre
       if (!appt) {

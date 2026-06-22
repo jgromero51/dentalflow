@@ -4,7 +4,7 @@
  * Sin dependencias externas (100% offline-ready).
  */
 
-const CACHE_NAME = 'dentalflow-v10';
+const CACHE_NAME = 'dentalflow-v11';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -97,4 +97,38 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ---- Web Push: mostrar notificación al llegar (app abierta o cerrada) ----
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
+
+  const title = data.title || 'DentalFlow';
+  const options = {
+    body: data.body || 'Tenés una notificación nueva.',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: data.tag || 'dentalflow-notif',
+    renotify: true,
+    data: { url: data.url || '/' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// ---- Al tocar la notificación: abrir/enfocar la app en la ruta indicada ----
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
+      for (const c of wins) {
+        if ('focus' in c) {
+          c.navigate(targetUrl).catch(() => {});
+          return c.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
+    })
+  );
 });
