@@ -135,15 +135,16 @@ router.post('/', (req, res, next) => {
         continue;
       }
 
-      // Determinar user_id: de la cita pendiente, o de la cita más reciente del paciente
+      // Buscar la cita activa por TELÉFONO (no por un solo patient.id): así se encuentra
+      // aunque el paciente esté duplicado o el teléfono guardado difiera en el código de país.
       const appt = await db.prepare(`
         SELECT a.*, p.nombre as paciente_nombre
         FROM appointments a JOIN patients p ON p.id = a.patient_id
-        WHERE a.patient_id = ?
+        WHERE (p.telefono = ? OR p.telefono = ? OR p.telefono = ? OR p.telefono LIKE ?)
           AND a.estado IN ('pendiente', 'confirmada')
           AND ${sqlColGtNow('a.fecha_hora_inicio', 6)}
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
-      `).get(patient.id);
+      `).get(telefonoFormateado, sinPlus, fromPhone, `%${sinPlus.slice(-9)}`);
 
       // Prioridad: dueño de la conversación → cita activa → última cita → primer admin
       let userId = ownerId || appt?.user_id || null;
