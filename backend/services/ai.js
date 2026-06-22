@@ -19,7 +19,12 @@ function getOpenAIClient() {
   if (!openaiClient && process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-...') {
     try {
       const OpenAI = require('openai');
-      openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const https = require('https');
+      // keepAlive:false evita el "Premature close" al reusar conexiones cerradas por OpenAI desde Render
+      openaiClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        httpAgent: new https.Agent({ keepAlive: false }),
+      });
       console.log('[AI] ✅ OpenAI inicializado correctamente');
     } catch (err) {
       console.warn('[AI] ⚠️ No se pudo inicializar OpenAI:', err.message);
