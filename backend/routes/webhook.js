@@ -89,9 +89,24 @@ router.post('/', (req, res, next) => {
       // Buscar al paciente por teléfono (varios formatos posibles)
       const telefonoFormateado = fromPhone.startsWith('+') ? fromPhone : `+${fromPhone}`;
       const sinPlus = fromPhone.replace(/^\+/, '');
+
+      // Dueño de la conversación: el usuario que le mandó el último mensaje a este teléfono.
+      // El paciente responde a quien le escribió, así que la notificación debe ir a ese usuario.
+      // (Resuelve el caso de teléfono duplicado entre usuarios distintos.)
+      const lastOutbound = await db.prepare(`
+        SELECT m.user_id
+        FROM message_log m JOIN patients p ON p.id = m.patient_id
+        WHERE (p.telefono = ? OR p.telefono = ? OR p.telefono = ? OR p.telefono LIKE ?)
+          AND m.tipo != 'respuesta_entrada' AND m.user_id IS NOT NULL
+        ORDER BY m.created_at DESC LIMIT 1
+      `).get(telefonoFormateado, sinPlus, fromPhone, `%${sinPlus.slice(-9)}`);
+      const ownerId = lastOutbound?.user_id || null;
+
+      // Si el teléfono está duplicado entre usuarios, preferir el registro del dueño de la conversación
       const patient = await db.prepare(
-        `SELECT * FROM patients WHERE telefono = ? OR telefono = ? OR telefono = ? OR telefono LIKE ?`
-      ).get(telefonoFormateado, sinPlus, fromPhone, `%${sinPlus.slice(-9)}`);
+        `SELECT * FROM patients WHERE telefono = ? OR telefono = ? OR telefono = ? OR telefono LIKE ?
+         ORDER BY CASE WHEN user_id = ? THEN 0 ELSE 1 END, id ASC LIMIT 1`
+      ).get(telefonoFormateado, sinPlus, fromPhone, `%${sinPlus.slice(-9)}`, ownerId);
 
       if (!patient) {
         console.log(`[Webhook] Paciente no registrado: ${telefonoFormateado}`);
@@ -130,7 +145,8 @@ router.post('/', (req, res, next) => {
         ORDER BY a.fecha_hora_inicio ASC LIMIT 1
       `).get(patient.id);
 
-      let userId = appt?.user_id || null;
+      // Prioridad: dueño de la conversación → cita activa → última cita → primer admin
+      let userId = ownerId || appt?.user_id || null;
       if (!userId) {
         const lastAppt = await db.prepare(
           `SELECT user_id FROM appointments WHERE patient_id = ? ORDER BY created_at DESC LIMIT 1`
