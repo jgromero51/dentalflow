@@ -262,19 +262,14 @@ async function transcribeAndFormatVoiceNote(base64Audio, ext = 'webm') {
   const ai = getOpenAIClient();
   if (!ai) throw new Error("La IA no está configurada.");
 
-  const os = require('os');
-  const path = require('path');
-  const fs = require('fs');
-  
-  // Guardamos el buffer en un archivo temporal porque el SDK lo requiere
-  const buffer = Buffer.from(base64Audio, 'base64');
-  const tempPath = path.join(os.tmpdir(), `voice_note_${Date.now()}.${ext.replace(/[^a-z0-9]/gi, '')}`);
-  fs.writeFileSync(tempPath, buffer);
+  const { toFile } = require('openai');
+  const buffer  = Buffer.from(base64Audio, 'base64');
+  const safeExt = (ext || 'webm').replace(/[^a-z0-9]/gi, '') || 'webm';
 
   try {
-    // 1. Transcribir audio
+    // 1. Transcribir audio (toFile evita el error "Premature close" del stream)
     const transcription = await ai.audio.transcriptions.create({
-      file: fs.createReadStream(tempPath),
+      file: await toFile(buffer, `audio.${safeExt}`),
       model: 'whisper-1',
       language: 'es'
     });
@@ -305,9 +300,6 @@ Texto dictado: "${textoTranscripto}"`;
   } catch (err) {
     console.error('[AI] Error en transcripción de voz:', err.message);
     throw new Error("Error en IA: " + err.message);
-  } finally {
-    // Limpiar archivo temporal
-    try { fs.unlinkSync(tempPath); } catch (e) {}
   }
 }
 
@@ -326,26 +318,17 @@ async function generateProformaFromVoice(base64Audio, ext, catalog) {
   const ai = getOpenAIClient();
   if (!ai) throw new Error('La IA no está configurada. Agregá tu API Key de OpenAI en Render.');
 
-  const os   = require('os');
-  const path = require('path');
-  const fs   = require('fs');
+  const { toFile } = require('openai');
+  const buffer  = Buffer.from(base64Audio, 'base64');
+  const safeExt = (ext || 'webm').replace(/[^a-z0-9]/gi, '') || 'webm';
 
-  const buffer   = Buffer.from(base64Audio, 'base64');
-  const tempPath = path.join(os.tmpdir(), `proforma_${Date.now()}.${ext.replace(/[^a-z0-9]/gi, '')}`);
-  fs.writeFileSync(tempPath, buffer);
-
-  let transcript = '';
-  try {
-    const transcription = await ai.audio.transcriptions.create({
-      file: fs.createReadStream(tempPath),
-      model: 'whisper-1',
-      language: 'es'
-    });
-    transcript = transcription.text.trim();
-    console.log('[AI] Proforma transcripta:', transcript);
-  } finally {
-    try { fs.unlinkSync(tempPath); } catch (e) {}
-  }
+  const transcription = await ai.audio.transcriptions.create({
+    file: await toFile(buffer, `audio.${safeExt}`),
+    model: 'whisper-1',
+    language: 'es'
+  });
+  const transcript = transcription.text.trim();
+  console.log('[AI] Proforma transcripta:', transcript);
 
   if (!transcript) throw new Error('No se pudo transcribir el audio.');
 

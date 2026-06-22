@@ -857,12 +857,18 @@ const PatientDetailView = {
         btn.disabled = true;
 
         try {
-          const blob   = new Blob(chunks, { type: 'audio/webm' });
+          // Detectar el formato real del navegador (iPhone graba m4a/mp4, no webm)
+          const mimeType = recorder.mimeType || 'audio/webm';
+          let ext = 'webm';
+          if (mimeType.includes('mp4') || mimeType.includes('m4a')) ext = 'm4a';
+          else if (mimeType.includes('mpeg')) ext = 'mp3';
+          else if (mimeType.includes('ogg')) ext = 'ogg';
+          const blob   = new Blob(chunks, { type: mimeType });
           const reader = new FileReader();
           reader.onloadend = async () => {
             const base64 = reader.result.split(',')[1];
             try {
-              const res = await api.catalog.proformaVoice(base64, 'webm');
+              const res = await api.catalog.proformaVoice(base64, ext);
               const items = res.data || [];
               if (items.length === 0) {
                 Toast.warning('No se detectaron tratamientos. Intentá de nuevo.');
