@@ -205,6 +205,7 @@ a { color: var(--primary); text-decoration: none; }
 .appt-card.estado-confirmada  { border-left-color: var(--success); }
 .appt-card.estado-cancelada   { border-left-color: var(--danger); opacity: 0.6; }
 .appt-card.estado-no_asistio  { border-left-color: var(--text-muted); opacity: 0.6; }
+.appt-card.estado-atendida    { border-left-color: var(--primary); }
 .appt-card:hover { background: var(--bg-hover); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .appt-card:active { transform: translateY(0); }
 
@@ -234,6 +235,7 @@ a { color: var(--primary); text-decoration: none; }
 .badge-confirmada { background: rgba(6,214,160,0.15);  color: var(--success); }
 .badge-cancelada  { background: rgba(239,71,111,0.15); color: var(--danger); }
 .badge-no_asistio { background: rgba(72,79,88,0.3);    color: var(--text-secondary); }
+.badge-atendida   { background: rgba(17,138,178,0.18); color: var(--primary); }
 
 /* ============================================================
    BUTTONS
@@ -1177,6 +1179,31 @@ input, textarea, select {
   border-radius: 6px;
   padding: 1px 7px;
 }
+.appt-paid-badge {
+  display: inline-block;
+  margin-top: 4px;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(6,214,160,0.1);
+  border: 1px solid var(--success);
+  border-radius: 6px;
+  padding: 1px 7px;
+}
+
+/* Modal de cobro (tarjeta centrada simple) */
+.modal-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  width: 100%; max-width: 700px; max-height: 92vh; overflow-y: auto;
+  padding: 24px 20px;
+}
+.modal-card .modal-title { margin-bottom: 4px; }
+.modal-sub { font-size: 13px; color: var(--text-secondary); margin: 0 0 16px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+.modal-actions .btn { flex: 1; }
 
 /* ============================================================
    MIDNIGHT PRO — capa de tema premium (glow cian + orbes + marca de agua)

@@ -130,7 +130,8 @@ const AppointmentsView = {
       return;
     }
 
-    const estadoLabel = { pendiente: 'Pendiente', confirmada: 'Confirmada', cancelada: 'Cancelada', no_asistio: 'No asistió' };
+    const estadoLabel = { pendiente: 'Pendiente', confirmada: 'Confirmada', cancelada: 'Cancelada', no_asistio: 'No asistió', atendida: 'Atendida' };
+    const fmtMoney = (n) => new Intl.NumberFormat('es-ES', { minimumFractionDigits: 2 }).format(n);
 
     container.innerHTML = `
       <div class="section-header">
@@ -154,7 +155,8 @@ const AppointmentsView = {
               </div>
               ${a.descripcion ? `<div class="appt-treatment">🦷 ${a.descripcion}</div>` : ''}
               <div class="appt-phone">${a.paciente_telefono}</div>
-              ${(a.costo_estimado > 0 && (a.costo_estimado - (a.monto_pagado||0)) > 0 && a.estado !== 'cancelada' && a.estado !== 'no_asistio') ? `<div class="appt-debt-badge">⚠ Debe $${new Intl.NumberFormat('es-ES',{minimumFractionDigits:2}).format(a.costo_estimado-(a.monto_pagado||0))}</div>` : ''}
+              ${(a.estado === 'atendida' && (a.monto_pagado||0) > 0) ? `<div class="appt-paid-badge">✓ Pagó $${fmtMoney(a.monto_pagado)}</div>` : ''}
+              ${(a.costo_estimado > 0 && (a.costo_estimado - (a.monto_pagado||0)) > 0 && a.estado !== 'cancelada' && a.estado !== 'no_asistio') ? `<div class="appt-debt-badge">⚠ Debe $${fmtMoney(a.costo_estimado-(a.monto_pagado||0))}</div>` : ''}
             </div>
             <div>
               <span class="badge badge-${a.estado}">${estadoLabel[a.estado] || a.estado}</span>
@@ -166,8 +168,12 @@ const AppointmentsView = {
               <button class="btn btn-danger  btn-sm" onclick="AppointmentsView.updateStatus(${a.id},'cancelada')">✕ Cancelar</button>
               <button class="btn btn-ghost btn-sm" onclick="AppointmentsView.sendConfirmation(${a.id},this)" title="Pedir confirmación por WhatsApp">📲 Pedir</button>
             ` : ''}
-            ${a.estado !== 'no_asistio' && a.estado !== 'cancelada' ? `
+            ${a.estado !== 'no_asistio' && a.estado !== 'cancelada' && a.estado !== 'atendida' ? `
+              <button class="btn btn-success btn-sm" onclick="AppointmentsView.openCobro(${a.id})">💰 Atendida / Cobrar</button>
               <button class="btn btn-ghost btn-sm" onclick="AppointmentsView.updateStatus(${a.id},'no_asistio')">No asistió</button>
+            ` : ''}
+            ${a.estado === 'atendida' ? `
+              <button class="btn btn-ghost btn-sm" onclick="AppointmentsView.openCobro(${a.id})">✏️ Editar cobro</button>
             ` : ''}
             <button class="btn btn-ghost btn-sm btn-icon" onclick="AppointmentsView.whatsappPatient('${a.paciente_telefono}')" title="WhatsApp">
               <svg viewBox="0 0 24 24" fill="currentColor" style="color:#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
@@ -190,6 +196,61 @@ const AppointmentsView = {
       await this.loadStats();
     } catch (err) {
       Toast.error('Error al actualizar: ' + err.message);
+    }
+  },
+
+  openCobro(id) {
+    const a = this.allAppointments.find(x => x.id === id) || {};
+    const costo  = a.costo_estimado || '';
+    const pagado = a.monto_pagado || '';
+    const metodo = a.metodo_pago || 'efectivo';
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open';
+    overlay.id = 'cobro-modal';
+    overlay.innerHTML = `
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-title">💰 Registrar cobro</div>
+        <p class="modal-sub">${a.paciente_nombre || ''} — completá lo que pagó tras la atención.</p>
+        <div class="form-group">
+          <label class="form-label">Costo total ($)</label>
+          <input type="number" id="cobro-costo" class="form-control" placeholder="0.00" min="0" step="0.01" value="${costo}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Monto pagado ($)</label>
+          <input type="number" id="cobro-pagado" class="form-control" placeholder="0.00" min="0" step="0.01" value="${pagado}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Método de pago</label>
+          <select id="cobro-metodo" class="form-control">
+            ${['efectivo','tarjeta','transferencia','yape','plin','otro'].map(m => `<option value="${m}" ${m===metodo?'selected':''}>${m.charAt(0).toUpperCase()+m.slice(1)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" onclick="document.getElementById('cobro-modal').remove()">Cancelar</button>
+          <button class="btn btn-success" onclick="AppointmentsView.saveCobro(${id})">✓ Guardar cobro</button>
+        </div>
+      </div>`;
+    overlay.onclick = () => overlay.remove();
+    document.body.appendChild(overlay);
+  },
+
+  async saveCobro(id) {
+    const costo  = parseFloat(document.getElementById('cobro-costo').value) || 0;
+    const pagado = parseFloat(document.getElementById('cobro-pagado').value) || 0;
+    const metodo = document.getElementById('cobro-metodo').value;
+    try {
+      await api.appointments.update(id, {
+        estado: 'atendida',
+        costo_estimado: costo,
+        monto_pagado: pagado,
+        metodo_pago: metodo,
+      });
+      document.getElementById('cobro-modal')?.remove();
+      Toast.success('✅ Cita atendida y cobro registrado');
+      await this.loadTab(this.currentTab);
+      await this.loadStats();
+    } catch (err) {
+      Toast.error('Error al guardar cobro: ' + err.message);
     }
   },
 
