@@ -6,16 +6,28 @@ const NotifDropdown = {
   _open: false,
   _pollInterval: null,
   _unread: 0,
+  _listenersBound: false,
 
   init() {
     if (!Auth.isLoggedIn()) return;
     this._poll();
-    // Refresca cada 30 segundos
-    this._pollInterval = setInterval(() => this._poll(), 30000);
-    // Cerrar al hacer click fuera
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('#nav-notif-wrapper')) this.close();
-    });
+    // Refresca cada 15 segundos
+    if (this._pollInterval) clearInterval(this._pollInterval);
+    this._pollInterval = setInterval(() => this._poll(), 15000);
+
+    // Registrar listeners globales una sola vez
+    if (!this._listenersBound) {
+      this._listenersBound = true;
+      // Cerrar al hacer click fuera
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('#nav-notif-wrapper')) this.close();
+      });
+      // Refrescar al instante cuando la app vuelve al frente (foco/visibilidad)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') this._poll();
+      });
+      window.addEventListener('focus', () => this._poll());
+    }
   },
 
   destroy() {
