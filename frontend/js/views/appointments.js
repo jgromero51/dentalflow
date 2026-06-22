@@ -3,7 +3,15 @@
  */
 const AppointmentsView = {
   currentTab: 'today',
+  currentDate: null,   // si se está viendo una fecha del mini-calendario
   allAppointments: [],
+
+  // Recarga la lista que está realmente en pantalla (fecha o tab) + stats
+  async reloadCurrent() {
+    if (this.currentDate) await this.loadByDate(this.currentDate);
+    else await this.loadTab(this.currentTab);
+    await this.loadStats();
+  },
 
   async render(container) {
     container.innerHTML = `
@@ -76,6 +84,7 @@ const AppointmentsView = {
 
   async loadTab(tab) {
     this.currentTab = tab;
+    this.currentDate = null;
     const listEl = document.getElementById('appointments-list');
     if (!listEl) return; // la vista pudo cambiar durante un await
     listEl.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loading-spinner" style="margin:0 auto;"></div></div>';
@@ -101,6 +110,7 @@ const AppointmentsView = {
   },
 
   async loadByDate(fecha) {
+    this.currentDate = fecha;
     const listEl = document.getElementById('appointments-list');
     if (!listEl) return; // la vista pudo cambiar durante un await
     listEl.innerHTML = '<div style="text-align:center;padding:24px;"><div class="loading-spinner" style="margin:0 auto;"></div></div>';
@@ -192,8 +202,7 @@ const AppointmentsView = {
       await api.appointments.updateStatus(id, estado);
       const labels = { confirmada: '✅ Confirmada', cancelada: '❌ Cancelada', no_asistio: '😔 No asistió' };
       Toast.success(`Cita marcada como: ${labels[estado] || estado}`);
-      await this.loadTab(this.currentTab);
-      await this.loadStats();
+      await this.reloadCurrent();
     } catch (err) {
       Toast.error('Error al actualizar: ' + err.message);
     }
@@ -247,8 +256,7 @@ const AppointmentsView = {
       });
       document.getElementById('cobro-modal')?.remove();
       Toast.success('✅ Cita atendida y cobro registrado');
-      await this.loadTab(this.currentTab);
-      await this.loadStats();
+      await this.reloadCurrent();
     } catch (err) {
       Toast.error('Error al guardar cobro: ' + err.message);
     }
@@ -258,9 +266,9 @@ const AppointmentsView = {
     if (!confirm('¿Eliminar esta cita?')) return;
     try {
       await api.appointments.delete(id);
+      document.getElementById('appt-' + id)?.remove(); // feedback instantáneo
       Toast.success('Cita eliminada');
-      await this.loadTab(this.currentTab);
-      await this.loadStats();
+      await this.reloadCurrent();
     } catch (err) {
       Toast.error('Error al eliminar: ' + err.message);
     }
@@ -272,7 +280,7 @@ const AppointmentsView = {
     try {
       await api.appointments.update(id, { fecha_hora_inicio: nuevaFecha });
       Toast.success('✅ Cita reprogramada');
-      await this.loadTab(this.currentTab);
+      await this.reloadCurrent();
     } catch (err) {
       Toast.error('Error: ' + err.message);
     }
