@@ -519,7 +519,11 @@ ${fueraDeHorario
       console.warn('[AI] Error en chatWithPatient:', err.message);
     }
   }
-  return { intencion: 'otro', respuesta: `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷` };
+  // Fallback sin IA: respetar el horario de atención (7am-8pm)
+  const respuestaFallback = fueraDeHorario
+    ? `¡Hola! Gracias por escribirnos a *${clinicName}*. 🦷 En este momento estamos fuera de horario. Nuestro horario de atención es de 7am a 8pm; te responderemos apenas reabramos.`
+    : `Gracias por escribirnos a *${clinicName}*. En breve te atendemos. 🦷`;
+  return { intencion: 'otro', respuesta: respuestaFallback };
 }
 
 module.exports = { generateReminderMessage, processPatientResponse, generatePatientSummary, transcribeAndFormatVoiceNote, generateProformaFromVoice, generateProformaFromImage, chatWithPatient };
