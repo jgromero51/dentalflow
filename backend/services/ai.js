@@ -469,9 +469,13 @@ Si no podés leer la imagen o no hay tratamientos visibles, devolvé: []`;
  */
 async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, historial = [], hoy = null) {
   const ai = getOpenAIClient();
-  // Usar timezone de Peru (UTC-5) para calcular "hoy" correctamente
-  const fechaHoy = hoy || new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Usar timezone de Peru (UTC-5) para calcular "hoy" y la hora actual correctamente
+  const ahoraPeru = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const fechaHoy = hoy || ahoraPeru.toISOString().slice(0, 10);
   const diaSemana = new Date(fechaHoy + 'T12:00:00').toLocaleDateString('es-PE', { weekday: 'long' });
+  const horaPeru = ahoraPeru.toISOString().slice(11, 16); // HH:MM hora de Perú
+  const horaActual = Number(horaPeru.slice(0, 2));
+  const fueraDeHorario = horaActual >= 20 || horaActual < 7; // 8pm a 7am
   const contextoC = apptInfo
     ? `El paciente tiene una cita el ${formatFecha(apptInfo.fecha_hora_inicio)} a las ${formatHora(apptInfo.fecha_hora_inicio)}.`
     : 'El paciente no tiene cita programada actualmente.';
@@ -480,16 +484,19 @@ async function chatWithPatient(texto, patientName, clinicName, apptInfo = null, 
     try {
       const messages = [{
         role: 'system',
-        content: `Sos el asistente de ${clinicName}, una clínica dental en Perú. Hoy es ${diaSemana} ${fechaHoy}. ${contextoC}
+        content: `Sos el asistente de ${clinicName}, una clínica dental en Perú. Hoy es ${diaSemana} ${fechaHoy}, son las ${horaPeru} hora de Perú. El horario de atención es de 7:00 a 20:00 (7am a 8pm). ${contextoC}
 
 Respondé SOLO en JSON válido con este formato exacto:
 {"intencion":"agendar"|"otro","respuesta":"texto"}
 
 Reglas:
 - intencion="agendar" si el paciente quiere sacar turno/cita o preguntar disponibilidad de horarios.
-- respuesta: máx 2 oraciones, natural, sin saludar repetido, español latinoamericano.
+- respuesta: máx 2 oraciones, cálida y natural como una recepcionista amable, sin saludar repetido, español latinoamericano.
 - NUNCA recetes ni des diagnósticos. Ante dolor, mostrá empatía y decí que pueden atenderlo.
-- NO menciones que sos un asistente virtual ni que no podés agendar.`
+- NO menciones que sos un asistente virtual ni que no podés agendar.
+${fueraDeHorario
+  ? '- AHORA ESTÁS FUERA DEL HORARIO DE ATENCIÓN. Respondé con calidez, agradecé el mensaje y avisá amablemente que el horario de atención es de 7am a 8pm y que le responderán apenas se reinicie la atención.'
+  : '- Estás dentro del horario de atención, respondé normalmente.'}`
       }];
 
       for (const h of historial) messages.push({ role: h.role, content: h.content });
