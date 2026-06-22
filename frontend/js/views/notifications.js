@@ -11,9 +11,9 @@ const NotifDropdown = {
   init() {
     if (!Auth.isLoggedIn()) return;
     this._poll();
-    // Refresca cada 15 segundos
+    // Refresca cada 8 segundos
     if (this._pollInterval) clearInterval(this._pollInterval);
-    this._pollInterval = setInterval(() => this._poll(), 15000);
+    this._pollInterval = setInterval(() => this._poll(), 8000);
 
     // Registrar listeners globales una sola vez
     if (!this._listenersBound) {
