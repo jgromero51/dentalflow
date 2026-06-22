@@ -28,6 +28,30 @@ function getOpenAIClient() {
   return openaiClient;
 }
 
+/**
+ * Transcribe audio con Whisper usando fetch nativo (Node 18+).
+ * Evita el "Premature close" del agentkeepalive del SDK al subir multipart desde Render.
+ */
+async function transcribeAudio(buffer, ext) {
+  const form = new FormData();
+  form.append('file', new Blob([buffer]), `audio.${ext}`);
+  form.append('model', 'whisper-1');
+  form.append('language', 'es');
+
+  const resp = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: form,
+  });
+
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => '');
+    throw new Error(`Whisper ${resp.status}: ${detalle.slice(0, 200)}`);
+  }
+  const data = await resp.json();
+  return (data.text || '').trim();
+}
+
 // ============================================================
 // Helpers de formato de fecha
 // ============================================================
@@ -262,19 +286,12 @@ async function transcribeAndFormatVoiceNote(base64Audio, ext = 'webm') {
   const ai = getOpenAIClient();
   if (!ai) throw new Error("La IA no está configurada.");
 
-  const { toFile } = require('openai');
   const buffer  = Buffer.from(base64Audio, 'base64');
   const safeExt = (ext || 'webm').replace(/[^a-z0-9]/gi, '') || 'webm';
 
   try {
-    // 1. Transcribir audio (toFile evita el error "Premature close" del stream)
-    const transcription = await ai.audio.transcriptions.create({
-      file: await toFile(buffer, `audio.${safeExt}`),
-      model: 'whisper-1',
-      language: 'es'
-    });
-
-    const textoTranscripto = transcription.text;
+    // 1. Transcribir audio
+    const textoTranscripto = await transcribeAudio(buffer, safeExt);
     console.log('[AI] Audio transcripto:', textoTranscripto);
 
     if (!textoTranscripto || textoTranscripto.trim() === '') {
@@ -318,16 +335,10 @@ async function generateProformaFromVoice(base64Audio, ext, catalog) {
   const ai = getOpenAIClient();
   if (!ai) throw new Error('La IA no está configurada. Agregá tu API Key de OpenAI en Render.');
 
-  const { toFile } = require('openai');
   const buffer  = Buffer.from(base64Audio, 'base64');
   const safeExt = (ext || 'webm').replace(/[^a-z0-9]/gi, '') || 'webm';
 
-  const transcription = await ai.audio.transcriptions.create({
-    file: await toFile(buffer, `audio.${safeExt}`),
-    model: 'whisper-1',
-    language: 'es'
-  });
-  const transcript = transcription.text.trim();
+  const transcript = await transcribeAudio(buffer, safeExt);
   console.log('[AI] Proforma transcripta:', transcript);
 
   if (!transcript) throw new Error('No se pudo transcribir el audio.');
