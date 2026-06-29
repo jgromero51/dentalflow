@@ -39,6 +39,7 @@ router.post('/', async (req, res) => {
       await db.prepare(`
         INSERT INTO settings (user_id, key, value) VALUES (?, ?, ?)
         ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+        RETURNING key
       `).run(uid, key, String(value));
       updates.push(key);
     }
@@ -49,7 +50,7 @@ router.post('/', async (req, res) => {
     res.json({ success: true, updated: updates });
   } catch (err) {
     console.error('[Settings] Error al guardar:', err.message);
-    res.status(500).json({ error: 'Error al guardar configuracion' });
+    res.status(500).json({ error: 'Error al guardar configuracion: ' + err.message });
   }
 });
 
